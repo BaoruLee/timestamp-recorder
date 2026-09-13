@@ -85,7 +85,9 @@
     <string name="pin_widget_all">全部事件</string>
     <string name="pin_widget_single">单事件</string>
     <string name="toast_pin_ok">已发起添加请求，请在弹窗中确认</string>
-    <string name="toast_pin_unsupported">当前桌面不支持一键添加，请长按桌面空白处手动添加</string>
+    <string name="pin_guide_title">当前桌面不支持一键添加</string>
+    <string name="pin_guide_msg">部分 ROM（如小米 / MIUI）没有开放这个能力，请手动添加：\n\n1. 回到桌面，长按空白处\n2. 选择「小组件」或「小工具」\n3. 找到「时间戳记录」\n4. 长按拖到桌面即可</string>
+    <string name="i_know">知道了</string>
     <string name="corner_small">小圆角 (8)</string>
     <string name="corner_medium">中圆角 (16)</string>
     <string name="corner_large">大圆角 (24)</string>

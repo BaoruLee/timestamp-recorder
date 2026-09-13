@@ -13,6 +13,7 @@ import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.google.android.material.color.DynamicColors
+import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.timestamp.recorder.databinding.ActivitySettingsBinding
 
@@ -103,11 +104,16 @@ class SettingsActivity : AppCompatActivity() {
     private fun pinWidget(provider: Class<*>) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = AppWidgetManager.getInstance(this)
-            val accepted = manager.requestPinAppWidget(ComponentName(this, provider), null, null)
-            val msg = if (accepted) R.string.toast_pin_ok else R.string.toast_pin_unsupported
-            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
-        } else {
-            Toast.makeText(this, R.string.toast_pin_unsupported, Toast.LENGTH_LONG).show()
+            if (manager.requestPinAppWidget(ComponentName(this, provider), null, null)) {
+                Toast.makeText(this, R.string.toast_pin_ok, Toast.LENGTH_LONG).show()
+                return
+            }
         }
+        // 桌面未开放该能力（小米 / MIUI 实测返回 false）：退回手动添加指引
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.pin_guide_title)
+            .setMessage(R.string.pin_guide_msg)
+            .setPositiveButton(R.string.i_know, null)
+            .show()
     }
 }
