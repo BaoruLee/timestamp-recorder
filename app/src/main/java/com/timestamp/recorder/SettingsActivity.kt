@@ -89,7 +89,7 @@ class SettingsActivity : AppCompatActivity() {
             Snackbar.make(binding.root, R.string.corner_applied, Snackbar.LENGTH_SHORT).show()
         }
 
-        // 一键添加到桌面
+        // 一键添加到桌面（标准 API：支持的 ROM 弹确认框钉到桌面；不支持的 ROM 退回手动添加指引）
         binding.btnPinAll.setOnClickListener { pinWidget(TimestampWidgetProvider::class.java) }
         binding.btnPinSingle.setOnClickListener { pinWidget(WidgetSingleProvider::class.java) }
     }
