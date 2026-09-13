@@ -129,6 +129,15 @@ class EventRepository(context: Context) {
         }
     }
 
+    /** 批量删除：按记录的时间戳值删除（批量勾选用） */
+    @Synchronized
+    fun deleteRecords(eventId: Long, toRemove: Set<Long>) {
+        if (toRemove.isEmpty()) return
+        val list = getRecords(eventId).toMutableList()
+        list.removeAll(toRemove)
+        saveRecords(eventId, list)
+    }
+
     @Synchronized
     fun undoLast(eventId: Long): Boolean {
         val list = getRecords(eventId).toMutableList()

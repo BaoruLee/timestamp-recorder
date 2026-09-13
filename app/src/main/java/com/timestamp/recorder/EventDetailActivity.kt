@@ -33,7 +33,7 @@ import java.io.OutputStreamWriter
 import java.nio.charset.StandardCharsets
 import java.util.Locale
 
-/** 事件详情页：一键记录 + 记录列表管理 + 导出 */
+/** 事件详情页：一键记录 + 记录列表管理（含批量勾选）+ 导出 */
 class EventDetailActivity : AppCompatActivity() {
 
     companion object {
@@ -44,6 +44,10 @@ class EventDetailActivity : AppCompatActivity() {
     private lateinit var repo: EventRepository
     private var eventId: Long = -1L
     private val adapter = RecordAdapter()
+
+    /** 批量管理模式 */
+    private var selectionMode = false
+    private val selected = mutableSetOf<Long>()
 
     private val exportLauncher =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
@@ -85,6 +89,11 @@ class EventDetailActivity : AppCompatActivity() {
 
         binding.btnRecord.setOnClickListener { record() }
         binding.btnUndo.setOnClickListener { undo() }
+
+        // 批量管理模式下的底部操作栏
+        binding.btnSelectAll.setOnClickListener { toggleSelectAll() }
+        binding.btnDeleteSelected.setOnClickListener { deleteSelected() }
+        binding.btnCancelSelect.setOnClickListener { exitSelectionMode() }
     }
 
     override fun onResume() {
@@ -112,6 +121,8 @@ class EventDetailActivity : AppCompatActivity() {
             last?.let { TimeFormat.hm(it) } ?: getString(R.string.event_no_record)
         )
         binding.tvEmpty.visibility = if (records.isEmpty()) View.VISIBLE else View.GONE
+        // 列表变化后，若仍处于选择模式则同步计数（如刚删除完）
+        if (selectionMode) updateSelectionUI()
     }
 
     private fun record() {
@@ -151,6 +162,79 @@ class EventDetailActivity : AppCompatActivity() {
             .show()
     }
 
+    // ---------- 批量管理 ----------
+
+    private fun enterSelectionMode() {
+        if (adapter.items.isEmpty()) {
+            Snackbar.make(binding.root, R.string.toast_empty, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        selectionMode = true
+        selected.clear()
+        binding.selectionBar.visibility = View.VISIBLE
+        // 给底部操作栏留出空间，避免最后几条被遮挡
+        binding.recyclerRecords.updatePadding(bottom = 140)
+        adapter.notifyDataSetChanged()
+        updateSelectionUI()
+    }
+
+    private fun exitSelectionMode() {
+        selectionMode = false
+        selected.clear()
+        binding.selectionBar.visibility = View.GONE
+        binding.recyclerRecords.updatePadding(bottom = 24)
+        adapter.notifyDataSetChanged()
+    }
+
+    private fun toggleSelection(millis: Long) {
+        if (selected.contains(millis)) selected.remove(millis) else selected.add(millis)
+        adapter.notifyDataSetChanged()
+        updateSelectionUI()
+    }
+
+    private fun toggleSelectAll() {
+        if (selected.size == adapter.items.size) {
+            selected.clear()
+        } else {
+            selected.addAll(adapter.items)
+        }
+        adapter.notifyDataSetChanged()
+        updateSelectionUI()
+    }
+
+    private fun updateSelectionUI() {
+        val n = selected.size
+        binding.tvSelectedCount.text = getString(R.string.batch_selected_count, n)
+        binding.btnDeleteSelected.text = getString(R.string.batch_delete_with_count, n)
+        binding.btnSelectAll.setText(
+            if (n == adapter.items.size && adapter.items.isNotEmpty()) {
+                R.string.batch_deselect_all
+            } else {
+                R.string.batch_select_all
+            }
+        )
+    }
+
+    private fun deleteSelected() {
+        if (selected.isEmpty()) {
+            Snackbar.make(binding.root, R.string.batch_none_selected, Snackbar.LENGTH_SHORT).show()
+            return
+        }
+        val n = selected.size
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.batch_delete_title)
+            .setMessage(getString(R.string.batch_delete_msg, n))
+            .setPositiveButton(R.string.delete) { _, _ ->
+                repo.deleteRecords(eventId, selected.toSet())
+                exitSelectionMode()
+                refresh()
+                WidgetRecordHelper.refreshAll(this)
+                Snackbar.make(binding.root, getString(R.string.batch_deleted, n), Snackbar.LENGTH_SHORT).show()
+            }
+            .setNegativeButton(R.string.cancel, null)
+            .show()
+    }
+
     // ---------- 菜单 ----------
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
@@ -158,6 +242,7 @@ class EventDetailActivity : AppCompatActivity() {
         menu.add(Menu.NONE, 2, 0, R.string.export_records)
         menu.add(Menu.NONE, 3, 0, R.string.menu_clear_records)
         menu.add(Menu.NONE, 4, 0, R.string.menu_delete_event)
+        menu.add(Menu.NONE, 5, 0, R.string.menu_batch)
         return true
     }
 
@@ -167,6 +252,7 @@ class EventDetailActivity : AppCompatActivity() {
             2 -> startExport()
             3 -> confirmClear()
             4 -> confirmDeleteEvent()
+            5 -> enterSelectionMode()
             else -> return super.onOptionsItemSelected(item)
         }
         return true
@@ -293,18 +379,26 @@ class EventDetailActivity : AppCompatActivity() {
 
         override fun onBindViewHolder(holder: VH, position: Int) {
             val millis = items[position]
+            val inSelection = this@EventDetailActivity.selectionMode
             holder.b.tvIndex.text = String.format(Locale.getDefault(), "#%d", items.size - position)
             holder.b.tvTime.text = TimeFormat.full(millis)
             holder.b.tvUnix.text = getString(R.string.unix_label, millis / 1000)
-            holder.b.tvCopy.setOnClickListener { copy(millis) }
-            holder.b.root.setOnClickListener { copy(millis) }
-            holder.b.root.setOnLongClickListener {
-                confirmDelete(position)
-                true
+            holder.b.tvCopy.visibility = if (inSelection) View.GONE else View.VISIBLE
+            holder.b.cbSelect.visibility = if (inSelection) View.VISIBLE else View.GONE
+            holder.b.cbSelect.isChecked = this@EventDetailActivity.selected.contains(millis)
+            if (inSelection) {
+                holder.b.root.setOnClickListener { toggleSelection(millis) }
+                holder.b.root.setOnLongClickListener { toggleSelection(millis); true }
+            } else {
+                holder.b.tvCopy.setOnClickListener { copy(millis) }
+                holder.b.root.setOnClickListener { copy(millis) }
+                holder.b.root.setOnLongClickListener {
+                    confirmDelete(position)
+                    true
+                }
             }
         }
 
         inner class VH(val b: ItemRecordBinding) : RecyclerView.ViewHolder(b.root)
     }
 }
-

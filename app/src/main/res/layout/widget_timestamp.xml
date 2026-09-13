@@ -1,37 +1,61 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 「全部事件」小组件。
-     注意：这里刻意不用 ListView + RemoteViewsService —— 列表型小组件依赖桌面启动器
-     跨进程绑定 RemoteViewsService，部分 ROM（如 MIUI / HyperOS）兼容性很差，
-     会直接显示「载入窗口小部件时出现问题」。改成固定行渲染后完全不依赖该服务，稳定得多。 -->
+     固定行渲染（最多 6 行），不依赖 ListView + RemoteViewsService，
+     因此列表型小组件在 MIUI / HyperOS 上「载入窗口小部件时出现问题」的问题不存在。
+     设计：彩色圆点表示事件分类色 + 中性半透明行底，文字始终白字可读。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/widgetRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:padding="10dp">
+    android:padding="12dp">
 
-    <TextView
-        android:id="@+id/widgetTitle"
-        android:layout_width="wrap_content"
+    <LinearLayout
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="@string/widget_all_title"
-        android:textColor="#FFFFFF"
-        android:textSize="13sp"
-        android:textStyle="bold"
+        android:orientation="horizontal"
+        android:gravity="center_vertical"
         android:paddingStart="6dp"
-        android:paddingBottom="6dp" />
+        android:paddingEnd="6dp"
+        android:paddingBottom="8dp">
+
+        <TextView
+            android:id="@+id/widgetTitle"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="@string/widget_all_title"
+            android:textColor="#FFFFFF"
+            android:textSize="15sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:text="@string/widget_click_hint"
+            android:textColor="#99FFFFFF"
+            android:textSize="10sp" />
+    </LinearLayout>
 
     <LinearLayout
         android:id="@+id/row0"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginBottom="5dp"
+        android:layout_marginBottom="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:background="@drawable/bg_corner_r16">
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:background="@drawable/bg_widget_row">
+
+        <ImageView
+            android:id="@+id/dot0"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/bg_dot"
+            android:scaleType="fitCenter" />
 
         <TextView
             android:id="@+id/name0"
@@ -49,7 +73,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:textColor="#CCFFFFFF"
+            android:textColor="#B3FFFFFF"
             android:textSize="11sp" />
     </LinearLayout>
 
@@ -58,12 +82,20 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginBottom="5dp"
+        android:layout_marginBottom="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:background="@drawable/bg_corner_r16">
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:background="@drawable/bg_widget_row">
+
+        <ImageView
+            android:id="@+id/dot1"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/bg_dot"
+            android:scaleType="fitCenter" />
 
         <TextView
             android:id="@+id/name1"
@@ -81,7 +113,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:textColor="#CCFFFFFF"
+            android:textColor="#B3FFFFFF"
             android:textSize="11sp" />
     </LinearLayout>
 
@@ -90,12 +122,20 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginBottom="5dp"
+        android:layout_marginBottom="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:background="@drawable/bg_corner_r16">
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:background="@drawable/bg_widget_row">
+
+        <ImageView
+            android:id="@+id/dot2"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/bg_dot"
+            android:scaleType="fitCenter" />
 
         <TextView
             android:id="@+id/name2"
@@ -113,7 +153,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:textColor="#CCFFFFFF"
+            android:textColor="#B3FFFFFF"
             android:textSize="11sp" />
     </LinearLayout>
 
@@ -122,12 +162,20 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginBottom="5dp"
+        android:layout_marginBottom="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:background="@drawable/bg_corner_r16">
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:background="@drawable/bg_widget_row">
+
+        <ImageView
+            android:id="@+id/dot3"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/bg_dot"
+            android:scaleType="fitCenter" />
 
         <TextView
             android:id="@+id/name3"
@@ -145,7 +193,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:textColor="#CCFFFFFF"
+            android:textColor="#B3FFFFFF"
             android:textSize="11sp" />
     </LinearLayout>
 
@@ -154,12 +202,20 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
-        android:layout_marginBottom="5dp"
+        android:layout_marginBottom="6dp"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:background="@drawable/bg_corner_r16">
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:background="@drawable/bg_widget_row">
+
+        <ImageView
+            android:id="@+id/dot4"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/bg_dot"
+            android:scaleType="fitCenter" />
 
         <TextView
             android:id="@+id/name4"
@@ -177,7 +233,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:textColor="#CCFFFFFF"
+            android:textColor="#B3FFFFFF"
             android:textSize="11sp" />
     </LinearLayout>
 
@@ -188,9 +244,17 @@
         android:layout_weight="1"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="12dp"
-        android:paddingEnd="12dp"
-        android:background="@drawable/bg_corner_r16">
+        android:paddingStart="14dp"
+        android:paddingEnd="14dp"
+        android:background="@drawable/bg_widget_row">
+
+        <ImageView
+            android:id="@+id/dot5"
+            android:layout_width="10dp"
+            android:layout_height="10dp"
+            android:layout_marginEnd="10dp"
+            android:src="@drawable/bg_dot"
+            android:scaleType="fitCenter" />
 
         <TextView
             android:id="@+id/name5"
@@ -208,7 +272,7 @@
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="8dp"
-            android:textColor="#CCFFFFFF"
+            android:textColor="#B3FFFFFF"
             android:textSize="11sp" />
     </LinearLayout>
 

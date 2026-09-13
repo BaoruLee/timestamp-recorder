@@ -93,4 +93,16 @@
     <string name="corner_large">大圆角 (24)</string>
     <string name="corner_xlarge">超大圆角 (32)</string>
     <string name="corner_applied">圆角已生效，桌面小组件已刷新</string>
+
+    <!-- 批量管理 -->
+    <string name="menu_batch">批量管理</string>
+    <string name="batch_select_all">全选</string>
+    <string name="batch_deselect_all">取消全选</string>
+    <string name="batch_cancel">取消</string>
+    <string name="batch_selected_count">已选 %1$d 项</string>
+    <string name="batch_delete_with_count">删除(%1$d)</string>
+    <string name="batch_delete_title">删除选中的记录？</string>
+    <string name="batch_delete_msg">将删除选中的 %1$d 条记录，无法恢复。建议先导出备份。</string>
+    <string name="batch_deleted">已删除 %1$d 条记录</string>
+    <string name="batch_none_selected">请先勾选要删除的记录</string>
 </resources>

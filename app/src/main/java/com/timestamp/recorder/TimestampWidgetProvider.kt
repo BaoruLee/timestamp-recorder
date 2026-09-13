@@ -6,18 +6,20 @@ import android.appwidget.AppWidgetProvider
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
-import android.content.res.ColorStateList
 import android.view.View
 import android.widget.RemoteViews
 
 /**
  * 小组件类型一：全部事件。
- * 显示最多 6 个事件的彩色按钮，点击对应事件立即记录。
+ * 显示最多 6 个事件的「彩色圆点 + 名称 + 最近记录时间」，点击对应事件立即记录。
  *
  * 实现说明：这里**不使用** ListView + RemoteViewsService。
  * 列表型小组件要求桌面启动器跨进程 bindService 拉取数据，
  * 在部分 ROM（MIUI / HyperOS）上会直接失败并显示「载入窗口小部件时出现问题」。
  * 改为固定行（最多 6 行）渲染后不依赖任何跨进程服务，兼容性好得多。
+ *
+ * 配色：每行用中性半透明行底（bg_widget_row），事件色只出现在左侧圆点，
+ * 通过 ImageView.setColorFilter 染色（跨 ROM 稳定），白字始终可读、颜色一眼可见。
  */
 class TimestampWidgetProvider : AppWidgetProvider() {
 
@@ -30,6 +32,9 @@ class TimestampWidgetProvider : AppWidgetProvider() {
 
         private val ROW_IDS = intArrayOf(
             R.id.row0, R.id.row1, R.id.row2, R.id.row3, R.id.row4, R.id.row5
+        )
+        private val DOT_IDS = intArrayOf(
+            R.id.dot0, R.id.dot1, R.id.dot2, R.id.dot3, R.id.dot4, R.id.dot5
         )
         private val NAME_IDS = intArrayOf(
             R.id.name0, R.id.name1, R.id.name2, R.id.name3, R.id.name4, R.id.name5
@@ -60,11 +65,8 @@ class TimestampWidgetProvider : AppWidgetProvider() {
                     if (last != null) TimeFormat.hm(last) else context.getString(R.string.widget_row_no_record)
                 )
 
-                // 圆角背景 + 事件色 tint（颜色即分类）
-                views.setInt(ROW_IDS[i], "setBackgroundResource", WidgetPrefs.cornerRes(corner))
-                views.setColorStateList(
-                    ROW_IDS[i], "setBackgroundTintList", ColorStateList.valueOf(ev.color)
-                )
+                // 彩色圆点：用 ImageView 的 colorFilter 染成事件色（可靠，跨 ROM）
+                views.setInt(DOT_IDS[i], "setColorFilter", ev.color)
 
                 val pi = PendingIntent.getBroadcast(
                     context,
