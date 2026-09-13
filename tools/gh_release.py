@@ -39,17 +39,15 @@ def read_version():
 def get_token():
     token = os.environ.get("GH_TOKEN")
     if token:
-        return token
-    out = run(["git", "credential", "fill"], capture=True)
-    if out.returncode == 0:
-        inp = "protocol=https\nhost=github.com\n"
-        res = subprocess.run(
-            ["git", "credential", "fill"],
-            input=inp, capture_output=True, text=True,
-        )
-        for line in res.stdout.splitlines():
-            if line.startswith("password="):
-                return line.split("=", 1)[1]
+        return token.strip()
+    res = subprocess.run(
+        ["git", "credential", "fill"],
+        input="protocol=https\nhost=github.com\n",
+        capture_output=True, text=True,
+    )
+    for line in res.stdout.splitlines():
+        if line.startswith("password="):
+            return line.split("=", 1)[1].strip()
     sys.exit("未找到 GitHub Token：请设置环境变量 GH_TOKEN 或用 git credential 登录 github.com")
 
 
@@ -72,9 +70,24 @@ def api(path, data=None, method="GET"):
     req.add_header("Content-Type", "application/json")
     try:
         with urllib.request.urlopen(req) as r:
-            return json.loads(r.read().decode())
+            raw = r.read().decode()
+            if not raw.strip():
+                return None
+            return json.loads(raw)
     except urllib.error.HTTPError as e:
         sys.exit("API ERROR %s: %s" % (e.code, e.read().decode()))
+
+
+def delete_existing(tag):
+    """若已存在同名 tag 的 Release，先删除（保证幂等、避免重复创建）。"""
+    rels = api("/repos/%s/releases" % REPO, method="GET")
+    if not isinstance(rels, list):
+        return
+    for r in rels:
+        if r.get("tag_name") == tag:
+            api("/repos/%s/releases/%s" % (REPO, r["id"]), method="DELETE")
+            print("已删除旧 Release: %s" % tag)
+            return
 
 
 def main():
@@ -100,12 +113,16 @@ def main():
     )
 
     print("版本: %s  对比基准: %s" % (tag, prev or "(首个版本)"))
+    delete_existing(tag)
+
     rel = api("/repos/%s/releases" % REPO, {
         "tag_name": tag,
         "name": "v" + version,
         "body": body,
         "generate_release_notes": False,
-    })
+    }, method="POST")
+    if not isinstance(rel, dict):
+        sys.exit("创建 Release 返回异常响应: %r" % (rel,))
     rel_id = rel["id"]
     upload_url = rel["upload_url"].split("{")[0]
 
