@@ -67,6 +67,7 @@ class EventDetailActivity : AppCompatActivity() {
         )
         binding = ActivityEventDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        setSupportActionBar(binding.toolbar)
         repo = EventRepository(this)
         eventId = intent.getLongExtra(EXTRA_EVENT_ID, -1L)
 
@@ -242,7 +243,9 @@ class EventDetailActivity : AppCompatActivity() {
         menu.add(Menu.NONE, 2, 0, R.string.export_records)
         menu.add(Menu.NONE, 3, 0, R.string.menu_clear_records)
         menu.add(Menu.NONE, 4, 0, R.string.menu_delete_event)
-        menu.add(Menu.NONE, 5, 0, R.string.menu_batch)
+        val batchItem = menu.add(Menu.NONE, 5, 0, R.string.menu_batch)
+        batchItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
+        batchItem.setIcon(R.drawable.ic_check_box)
         return true
     }
 
