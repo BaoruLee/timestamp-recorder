@@ -18,6 +18,7 @@ local.properties
 # （安装包请走 GitHub Releases，不要放进仓库）
 *.apk
 *.aab
+*.idsig
 *.keystore
 *.jks
 
