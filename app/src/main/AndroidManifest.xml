@@ -48,6 +48,7 @@
         <!-- 桌面小组件类型一：全部事件列表 -->
         <receiver
             android:name=".TimestampWidgetProvider"
+            android:label="@string/widget_all_label"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -60,6 +61,7 @@
         <!-- 桌面小组件类型二：单事件大按钮（创建时绑定事件） -->
         <receiver
             android:name=".WidgetSingleProvider"
+            android:label="@string/widget_single_label"
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
@@ -69,9 +71,8 @@
                 android:resource="@xml/widget_single_info" />
         </receiver>
 
-        <service
-            android:name=".WidgetRemoteViewsService"
-            android:exported="false"
-            android:permission="android.permission.BIND_REMOTEVIEWS" />
+        <!-- RemoteViewsService 已移除：「全部事件」小组件改为固定行渲染，
+             不再需要 ListView + 跨进程服务（该模式在 MIUI / HyperOS 上会导致
+             小组件载入失败）。详见 TimestampWidgetProvider 的注释。 -->
     </application>
 </manifest>

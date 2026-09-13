@@ -1,6 +1,7 @@
 ﻿package com.timestamp.recorder
 
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.graphics.drawable.GradientDrawable
 import android.os.Bundle
 import android.view.Gravity
@@ -9,6 +10,7 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
+import android.widget.Toast
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
@@ -43,6 +45,9 @@ class MainActivity : AppCompatActivity() {
         )
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // 必须调用：否则 onCreateOptionsMenu 不会挂到 toolbar 上，
+        // 右上角的「设置」菜单项根本不会出现（之前就是漏了这行导致设置页无入口）
+        setSupportActionBar(binding.toolbar)
         repo = EventRepository(this)
 
         // 状态栏 inset：工具栏下沉到状态栏之下，背景渐变延伸至状态栏（无黑边）
@@ -69,6 +74,8 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refresh()
         applyFabPosition()
+        // 回到前台时同步一次桌面小组件，避免 App 内增删事件后桌面仍是旧数据
+        WidgetRecordHelper.refreshAll(this)
     }
 
     /** 快捷按钮位置：左 / 中 / 右（设置页可切换，立即生效） */
@@ -205,6 +212,20 @@ class MainActivity : AppCompatActivity() {
                     shape = GradientDrawable.OVAL
                     setColor(event.color)
                 }
+
+                // 快捷记录：点右侧按钮直接为该事件打一条时间戳，无需进入详情页
+                b.btnQuickRecord.backgroundTintList = ColorStateList.valueOf(event.color)
+                b.btnQuickRecord.setOnClickListener {
+                    repo.addRecord(event.id)
+                    Toast.makeText(
+                        this@MainActivity,
+                        getString(R.string.toast_recorded, event.name),
+                        Toast.LENGTH_SHORT
+                    ).show()
+                    refresh()
+                    WidgetRecordHelper.refreshAll(this@MainActivity)
+                }
+
                 b.root.setOnClickListener { openDetail(event) }
                 b.root.setOnLongClickListener {
                     showEventMenu(event)

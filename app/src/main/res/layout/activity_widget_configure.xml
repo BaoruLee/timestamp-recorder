@@ -6,10 +6,13 @@
     android:orientation="vertical"
     android:background="@drawable/bg_main_gradient">
 
+    <!-- 高度必须是 wrap_content + minHeight：沉浸式会给 toolbar 加状态栏高度的 top padding，
+         若高度写死成 ?attr/actionBarSize，标题就会被这块 padding 挤压甚至被状态栏盖住 -->
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/toolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
+        android:layout_height="wrap_content"
+        android:minHeight="?attr/actionBarSize"
         android:background="@color/glass_toolbar"
         app:navigationIcon="@drawable/ic_back"
         app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
@@ -24,10 +27,13 @@
         android:textColor="?attr/colorOnSurfaceVariant"
         android:textSize="13sp" />
 
+    <!-- 必须用 0dp + weight=1：写成 match_parent 会让列表按「整屏高度」测量，
+         底部超出可视区域，导致最后几个事件滑不到、点不到 -->
     <androidx.recyclerview.widget.RecyclerView
         android:id="@+id/recyclerBind"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
         android:clipToPadding="false"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"

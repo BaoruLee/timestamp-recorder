@@ -1,7 +1,11 @@
 package com.timestamp.recorder
 
+import android.appwidget.AppWidgetManager
+import android.content.ComponentName
 import android.content.Context
+import android.os.Build
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -82,6 +86,28 @@ class SettingsActivity : AppCompatActivity() {
             WidgetPrefs.setCorner(this, corner)
             WidgetRecordHelper.refreshAll(this)
             Snackbar.make(binding.root, R.string.corner_applied, Snackbar.LENGTH_SHORT).show()
+        }
+
+        // 一键添加到桌面
+        binding.btnPinAll.setOnClickListener { pinWidget(TimestampWidgetProvider::class.java) }
+        binding.btnPinSingle.setOnClickListener { pinWidget(WidgetSingleProvider::class.java) }
+    }
+
+    /**
+     * 一键申请把小组件钉到桌面（Android 8.0+）。
+     *
+     * 系统小部件列表里各 App 的排序由启动器决定，开发者无法通过任何 Manifest 属性干预，
+     * 所以用这个官方 API 让用户不必去列表里翻找。
+     * 返回 false 表示当前桌面不支持（部分 ROM 如此），此时提示用户手动长按桌面添加。
+     */
+    private fun pinWidget(provider: Class<*>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            val manager = AppWidgetManager.getInstance(this)
+            val accepted = manager.requestPinAppWidget(ComponentName(this, provider), null, null)
+            val msg = if (accepted) R.string.toast_pin_ok else R.string.toast_pin_unsupported
+            Toast.makeText(this, msg, Toast.LENGTH_LONG).show()
+        } else {
+            Toast.makeText(this, R.string.toast_pin_unsupported, Toast.LENGTH_LONG).show()
         }
     }
 }

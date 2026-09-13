@@ -10,4 +10,4 @@
     android:resizeMode="horizontal|vertical"
     android:widgetCategory="home_screen"
     android:description="@string/widget_all_description"
-    android:previewLayout="@layout/widget_timestamp" />
+    android:previewImage="@drawable/widget_preview_all" />

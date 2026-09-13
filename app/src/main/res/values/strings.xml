@@ -5,6 +5,7 @@
     <string name="main_title">时间戳记录</string>
     <string name="main_subtitle">管理事件 · 一键记录 · 桌面快捷</string>
     <string name="fab_add">添加事件</string>
+    <string name="quick_record">记录一次</string>
     <string name="empty_events">还没有事件\n点击右下角 + 添加第一个事件</string>
 
     <string name="event_count">共 %1$d 条记录</string>
@@ -55,6 +56,12 @@
     <!-- 小组件（两种类型） -->
     <string name="widget_all_description">全部事件列表：显示所有事件按钮，点击即记录</string>
     <string name="widget_single_description">单事件大按钮：绑定一个事件，点击即记录</string>
+    <string name="widget_all_label">时间戳 · 全部事件</string>
+    <string name="widget_single_label">时间戳 · 单事件</string>
+    <string name="widget_all_title">全部事件</string>
+    <string name="widget_empty_hint">暂无事件\n点此打开 App 添加</string>
+    <string name="widget_more">还有 %1$d 个事件</string>
+    <string name="widget_row_no_record">未记录</string>
     <string name="widget_single_bind_title">绑定事件</string>
     <string name="widget_single_bind_hint">选择该小组件要绑定的目标事件：桌面将显示事件色大按钮，点击即记录该事件。</string>
     <string name="widget_single_no_event">还没有事件，请先打开 App 创建事件</string>
@@ -73,6 +80,12 @@
     <string name="widget_section_title">桌面小组件</string>
     <string name="widget_section_hint">两种小组件类型：全部事件（列表）与单个事件（大按钮）；下方可调整小组件圆角</string>
     <string name="widget_corner_label">小组件圆角</string>
+    <string name="pin_section_title">一键添加到桌面</string>
+    <string name="pin_section_hint">不用去系统的「安卓小部件」列表里翻，在 App 里点一下即可申请添加（需桌面支持）</string>
+    <string name="pin_widget_all">全部事件</string>
+    <string name="pin_widget_single">单事件</string>
+    <string name="toast_pin_ok">已发起添加请求，请在弹窗中确认</string>
+    <string name="toast_pin_unsupported">当前桌面不支持一键添加，请长按桌面空白处手动添加</string>
     <string name="corner_small">小圆角 (8)</string>
     <string name="corner_medium">中圆角 (16)</string>
     <string name="corner_large">大圆角 (24)</string>
