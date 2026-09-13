@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 类型二：单事件大按钮小组件（创建时绑定一个事件） -->
+<appwidget-provider xmlns:android="http://schemas.android.com/apk/res/android"
+    android:minWidth="110dp"
+    android:minHeight="110dp"
+    android:targetCellWidth="2"
+    android:targetCellHeight="2"
+    android:updatePeriodMillis="0"
+    android:initialLayout="@layout/widget_single"
+    android:configure="com.timestamp.recorder.WidgetSingleConfigureActivity"
+    android:resizeMode="horizontal|vertical"
+    android:widgetCategory="home_screen"
+    android:widgetFeatures="reconfigurable"
+    android:description="@string/widget_single_description"
+    android:previewLayout="@layout/widget_single" />

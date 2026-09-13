@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="md_background">#141218</color>
+    <color name="md_on_background">#E6E0E9</color>
+    <color name="md_surface">#141218</color>
+    <color name="md_on_surface">#E6E0E9</color>
+    <color name="md_surface_variant">#49454F</color>
+    <color name="md_on_surface_variant">#CAC4D0</color>
+    <color name="md_outline">#938F99</color>
+    <color name="text_secondary">#8A97A8</color>
+
+    <!-- 毛玻璃（Glassmorphism）深色 -->
+    <color name="glass_card">#33000000</color>
+    <color name="glass_stroke">#26FFFFFF</color>
+    <color name="glass_toolbar">#66141218</color>
+</resources>

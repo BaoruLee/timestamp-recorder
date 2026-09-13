@@ -1,0 +1,26 @@
+# Gradle / 构建产物
+.gradle/
+build/
+build_log.txt
+captures/
+.externalNativeBuild/
+.cxx/
+
+# 本机配置（含 Android SDK 路径）
+local.properties
+
+# IDE
+.idea/
+*.iml
+.DS_Store
+
+# 交付安装包与签名密钥：严禁入库
+# （安装包请走 GitHub Releases，不要放进仓库）
+*.apk
+*.aab
+*.keystore
+*.jks
+
+# 交接文档：含签名密码等敏感信息，仅本机留存、不上传，
+# 但开发过程中会持续更新，供后续接手者阅读
+DEVELOPMENT.md

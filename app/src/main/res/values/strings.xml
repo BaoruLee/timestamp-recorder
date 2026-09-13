@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">时间戳记录</string>
+
+    <string name="main_title">时间戳记录</string>
+    <string name="main_subtitle">管理事件 · 一键记录 · 桌面快捷</string>
+    <string name="fab_add">添加事件</string>
+    <string name="empty_events">还没有事件\n点击右下角 + 添加第一个事件</string>
+
+    <string name="event_count">共 %1$d 条记录</string>
+    <string name="event_last">最近 %1$s</string>
+    <string name="event_no_record">暂无记录</string>
+
+    <string name="detail_record_btn">记录此刻</string>
+    <string name="detail_stats">共 %1$d 条 · 最近 %2$s</string>
+    <string name="detail_no_records">暂无记录\n点击上方按钮记录</string>
+    <string name="undo">撤销上一条</string>
+    <string name="menu_edit_event">编辑事件</string>
+    <string name="menu_delete_event">删除事件</string>
+    <string name="menu_clear_records">清空记录</string>
+
+    <string name="dialog_add_event_title">新建事件</string>
+    <string name="dialog_edit_event_title">编辑事件</string>
+    <string name="event_name_hint">事件名称（如：喝水、吃药、打卡）</string>
+    <string name="event_color_label">选择颜色</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
+    <string name="delete">删除</string>
+
+    <string name="delete_event_title">删除事件？</string>
+    <string name="delete_event_msg">将删除事件「%1$s」及其全部 %2$d 条记录，无法恢复。</string>
+    <string name="clear_records_title">清空记录？</string>
+    <string name="clear_records_msg">将删除该事件全部 %1$d 条记录，无法恢复。建议先导出备份。</string>
+    <string name="delete_record_msg">%1$s\n将删除这条记录，无法恢复。</string>
+    <string name="delete_record_title">删除这条记录？</string>
+
+    <string name="toast_recorded">已记录 %1$s</string>
+    <string name="toast_copied">已复制：%1$s</string>
+    <string name="toast_undone">已撤销上一条</string>
+    <string name="toast_no_undo">没有可撤销的记录</string>
+    <string name="toast_empty">还没有记录</string>
+    <string name="toast_name_required">请输入事件名称</string>
+    <string name="toast_event_deleted">事件已删除</string>
+    <string name="toast_exported">已导出 %1$d 条记录</string>
+    <string name="toast_export_failed">导出失败</string>
+
+    <string name="export_records">导出记录</string>
+    <string name="widget_label">时间戳记录</string>
+    <string name="widget_empty">暂无事件\n打开 App 添加</string>
+    <string name="widget_click_hint">点击记录</string>
+    <string name="widget_description">点击事件按钮快速记录时间戳</string>
+    <string name="unix_label">Unix 秒：%1$d</string>
+    <string name="action_copy">复制</string>
+
+    <!-- 小组件（两种类型） -->
+    <string name="widget_all_description">全部事件列表：显示所有事件按钮，点击即记录</string>
+    <string name="widget_single_description">单事件大按钮：绑定一个事件，点击即记录</string>
+    <string name="widget_single_bind_title">绑定事件</string>
+    <string name="widget_single_bind_hint">选择该小组件要绑定的目标事件：桌面将显示事件色大按钮，点击即记录该事件。</string>
+    <string name="widget_single_no_event">还没有事件，请先打开 App 创建事件</string>
+    <string name="widget_single_missing">事件已删除\n长按重新配置</string>
+
+    <!-- 设置 -->
+    <string name="menu_settings">设置</string>
+    <string name="settings_title">设置</string>
+    <string name="fab_position_label">快捷按钮位置</string>
+    <string name="fab_position_hint">「+」快捷按钮可在底部左、中、右三档切换</string>
+    <string name="fab_pos_start">左侧</string>
+    <string name="fab_pos_center">居中</string>
+    <string name="fab_pos_end">右侧</string>
+
+    <!-- 设置：小组件 -->
+    <string name="widget_section_title">桌面小组件</string>
+    <string name="widget_section_hint">两种小组件类型：全部事件（列表）与单个事件（大按钮）；下方可调整小组件圆角</string>
+    <string name="widget_corner_label">小组件圆角</string>
+    <string name="corner_small">小圆角 (8)</string>
+    <string name="corner_medium">中圆角 (16)</string>
+    <string name="corner_large">大圆角 (24)</string>
+    <string name="corner_xlarge">超大圆角 (32)</string>
+    <string name="corner_applied">圆角已生效，桌面小组件已刷新</string>
+</resources>
