@@ -21,6 +21,9 @@
     <color name="white">#FFFFFF</color>
     <color name="text_secondary">#6B7A8D</color>
 
+    <!-- 应用图标：自适应图标的背景层（与设计稿背景同色） -->
+    <color name="ic_launcher_background">#14306B</color>
+
     <!-- 毛玻璃（Glassmorphism） -->
     <color name="glass_card">#E8FFFFFF</color>
     <color name="glass_stroke">#1A1565C0</color>
