@@ -93,6 +93,7 @@ class MainActivity : BaseActivity() {
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menu.add(Menu.NONE, 1, 0, R.string.menu_settings)
         menu.add(Menu.NONE, 2, 0, R.string.menu_stats)
+        menu.add(Menu.NONE, 3, 0, R.string.menu_tutorial)
         return true
     }
 
@@ -100,6 +101,7 @@ class MainActivity : BaseActivity() {
         return when (item.itemId) {
             1 -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
             2 -> { startActivity(Intent(this, StatsActivity::class.java)); true }
+            3 -> { openExternalUrl(Links.TUTORIAL); true }
             else -> super.onOptionsItemSelected(item)
         }
     }

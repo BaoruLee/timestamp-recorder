@@ -1,7 +1,5 @@
 package com.timestamp.recorder
 
-import android.content.Intent
-import android.net.Uri
 import android.os.Bundle
 import com.timestamp.recorder.databinding.ActivityAboutBinding
 
@@ -15,12 +13,7 @@ class AboutActivity : BaseActivity() {
 
         binding.tvVersion.text = getString(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 
-        binding.btnGithub.setOnClickListener { openUrl("https://github.com/BaoruLee/timestamp-recorder") }
-        binding.btnFeedback.setOnClickListener { openUrl("https://github.com/BaoruLee/timestamp-recorder/issues") }
-    }
-
-    /** 用系统浏览器打开外链：App 自身不申请 INTERNET 权限，由系统浏览器负责联网 */
-    private fun openUrl(url: String) {
-        startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        binding.btnGithub.setOnClickListener { openExternalUrl(Links.REPO) }
+        binding.btnFeedback.setOnClickListener { openExternalUrl(Links.ISSUES) }
     }
 }

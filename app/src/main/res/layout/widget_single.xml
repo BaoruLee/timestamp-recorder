@@ -1,15 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<!--
+  单事件小组件 · 标准 / 大形态（2×2 及以上）。
+  垂直堆叠：事件名 / 最近一次记录时间 /（大尺寸时）累计次数 /（大尺寸时）点击提示。
+  各元素与字号由 WidgetSingleProvider 依据真实格子尺寸动态开关，小到 2×2、大到 4×4 都不空不挤。
+-->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/rowRoot"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
     android:padding="12dp">
 
     <TextView
         android:id="@+id/tvName"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
         android:gravity="center"
         android:paddingStart="8dp"
         android:paddingEnd="8dp"
@@ -19,25 +25,34 @@
         android:ellipsize="end"
         android:maxLines="2" />
 
+    <!-- 窄格子（如 1×2）里完整时间戳放不下，用 match_parent + 居中 + 省略号兜住 -->
     <TextView
         android:id="@+id/tvInfo"
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_gravity="bottom|center_horizontal"
-        android:layout_marginBottom="4dp"
-        android:padding="6dp"
+        android:layout_marginTop="6dp"
+        android:gravity="center"
         android:textColor="#E6FFFFFF"
         android:textSize="13sp"
-        android:fontFamily="monospace" />
+        android:fontFamily="monospace"
+        android:ellipsize="end"
+        android:maxLines="1" />
+
+    <TextView
+        android:id="@+id/tvCount"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="4dp"
+        android:textColor="#CCFFFFFF"
+        android:textSize="12sp" />
 
     <TextView
         android:id="@+id/tvHint"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="top|center_horizontal"
-        android:layout_marginTop="6dp"
-        android:padding="4dp"
+        android:layout_marginTop="8dp"
+        android:padding="2dp"
         android:text="@string/widget_click_hint"
         android:textColor="#B3FFFFFF"
         android:textSize="11sp" />
-</FrameLayout>
+</LinearLayout>

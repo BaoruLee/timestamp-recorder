@@ -22,6 +22,9 @@ local.properties
 __pycache__/
 *.pyc
 
+# 本机调试产物：adb 截图、裁图、图标预览等临时文件，不入库
+_*.png
+
 # 交付安装包与签名密钥：严禁入库
 # （安装包请走 GitHub Releases，不要放进仓库）
 *.apk

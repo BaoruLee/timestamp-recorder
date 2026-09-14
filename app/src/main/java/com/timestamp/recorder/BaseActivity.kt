@@ -1,7 +1,10 @@
 package com.timestamp.recorder
 
+import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.widget.Toast
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
@@ -56,6 +59,20 @@ abstract class BaseActivity : AppCompatActivity() {
 
         // 全局应用 MiSans（无字体文件时自动回退系统字体，零风险）
         Fonts.applyTo(root)
+    }
+
+    /**
+     * 用系统浏览器打开外链。
+     *
+     * App 自身不申请 INTERNET 权限，联网由系统浏览器负责——保持「零权限」。
+     * 设备上没有浏览器（或链接被系统策略拦截）时给个提示，不至于点了没反应。
+     */
+    protected fun openExternalUrl(url: String) {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.toast_no_browser, Toast.LENGTH_SHORT).show()
+        }
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {

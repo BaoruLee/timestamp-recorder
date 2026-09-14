@@ -56,7 +56,7 @@
 
     <!-- 小组件（两种类型） -->
     <string name="widget_all_description">全部事件列表：显示所有事件按钮，点击即记录</string>
-    <string name="widget_single_description">单事件大按钮：绑定一个事件，点击即记录</string>
+    <string name="widget_single_description">单事件按钮：绑定一个事件，点击即记录；支持 1×1 至 4×4 任意尺寸</string>
     <string name="widget_all_label">时间戳 · 全部事件</string>
     <string name="widget_single_label">时间戳 · 单事件</string>
     <string name="widget_all_title">全部事件</string>
@@ -67,6 +67,8 @@
     <string name="widget_single_bind_hint">选择该小组件要绑定的目标事件：桌面将显示事件色大按钮，点击即记录该事件。</string>
     <string name="widget_single_no_event">还没有事件，请先打开 App 创建事件</string>
     <string name="widget_single_missing">事件已删除\n长按重新配置</string>
+    <string name="widget_single_missing_short">已删除</string>
+    <string name="widget_single_count">共 %1$d 次</string>
     <string name="widget_capsule_label">时间戳 · 胶囊</string>
     <string name="widget_capsule_description">单事件 2×1 胶囊：绑定一个事件，横向胶囊一键记录</string>
     <string name="widget_capsule_record">记录</string>
@@ -84,15 +86,16 @@
 
     <!-- 设置：小组件 -->
     <string name="widget_section_title">桌面小组件</string>
-    <string name="widget_section_hint">三种小组件类型：全部事件（列表）、单事件（大按钮）、单事件（2×1 胶囊）；下方可调整小组件圆角</string>
+    <string name="widget_section_hint">三种小组件类型：全部事件（列表）、单事件（按钮，支持 1×1 至 4×4 任意尺寸）、单事件（2×1 胶囊）；下方可调整小组件圆角</string>
     <string name="widget_corner_label">小组件圆角</string>
     <string name="pin_section_title">一键添加到桌面</string>
-    <string name="pin_section_hint">不用去系统的「安卓小部件」列表里翻，在 App 里点一下即可申请添加（需桌面支持）</string>
+    <string name="pin_section_hint">不用去系统的「安卓小部件」列表里翻，在 App 里点一下即可申请添加。能不能用由桌面（启动器）决定</string>
+    <string name="pin_hyperos_note">⚠️ 小米 HyperOS 4 上用不了这三个按钮。\n\n「一键添加」走的是 Android 官方接口，得由桌面自己实现，而 HyperOS 4 直接返回失败——所以点了不会弹确认框，只会出现手动添加的指引。这不是 App 出错，也不是权限问题，在原生 Android 等桌面正常的系统上是可以一键钉住的。\n\nHyperOS 4 手动添加：\n1️⃣ 回到桌面，长按空白处\n2️⃣ 选「添加工具」（部分版本叫「小部件」）\n3️⃣ 顶部切到「小部件」，往下翻到「时间戳记录」\n4️⃣ 按住想要的组件拖到桌面，松手即可\n\n单事件 / 胶囊拖上去后会弹出「绑定事件」页，点一下要绑定的事件就完成了。</string>
     <string name="pin_widget_all">全部事件</string>
     <string name="pin_widget_single">单事件</string>
     <string name="toast_pin_ok">已发起添加请求，请在弹窗中确认</string>
     <string name="pin_guide_title">当前桌面不支持一键添加</string>
-    <string name="pin_guide_msg">部分 ROM（如小米 / MIUI）没有开放这个能力，请手动添加：\n\n1. 回到桌面，长按空白处\n2. 选择「小组件」或「小工具」\n3. 找到「时间戳记录」\n4. 长按拖到桌面即可</string>
+    <string name="pin_guide_msg">「一键添加到桌面」用的是 Android 官方接口，需要桌面（启动器）自己支持。\n小米 HyperOS 4 上该接口会直接返回失败，所以不会弹出确认框——这不是 App 出了问题，手动添加一样快：\n\n1. 回到桌面，长按空白处\n2. 选「添加工具」（个别版本叫「小部件」/「小工具」）\n3. 顶部切到「小部件」，往下翻找到「时间戳记录」\n4. 按住想要的组件拖到桌面，松手即可</string>
     <string name="i_know">知道了</string>
     <string name="corner_small">小圆角 (8)</string>
     <string name="corner_medium">中圆角 (16)</string>
@@ -111,6 +114,13 @@
     <string name="batch_delete_msg">将删除选中的 %1$d 条记录，无法恢复。建议先导出备份。</string>
     <string name="batch_deleted">已删除 %1$d 条记录</string>
     <string name="batch_none_selected">请先勾选要删除的记录</string>
+
+    <!-- 使用教程（跳转 GitHub README 的「使用教程」章节） -->
+    <string name="menu_tutorial">使用教程</string>
+    <string name="tutorial_section_title">使用教程</string>
+    <string name="tutorial_section_hint">图文教程托管在 GitHub：从新建事件、快捷记录，到拖动排序、小组件，每一步都写清楚了（将用浏览器打开）</string>
+    <string name="tutorial_open">查看图文教程</string>
+    <string name="toast_no_browser">没有找到可用的浏览器</string>
 
     <!-- 关于 / 开源引导 -->
     <string name="about_title">关于</string>

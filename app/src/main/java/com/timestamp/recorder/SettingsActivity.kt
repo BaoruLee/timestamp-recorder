@@ -141,6 +141,9 @@ class SettingsActivity : BaseActivity() {
             startActivity(Intent(this, AboutActivity::class.java))
         }
 
+        // 使用教程：交给系统浏览器打开 README 的教程章节
+        binding.btnTutorial.setOnClickListener { openExternalUrl(Links.TUTORIAL) }
+
         // 数据备份 / 恢复（走系统 SAF，不申请存储权限）
         binding.btnExportBackup.setOnClickListener {
             val now = TimeFormat.full(System.currentTimeMillis()).replace(':', '-').replace(' ', '_')
