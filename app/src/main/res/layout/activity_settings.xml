@@ -379,6 +379,36 @@
                             android:textSize="13sp"
                             android:text="@string/pin_widget_capsule" />
                     </LinearLayout>
+
+                    <!-- 仅小米 / 红米机型显示：HyperOS 上 requestPinAppWidget 需要
+                         「桌面快捷方式」权限，不授予就静默无反应（官方要求用户显式同意）。
+                         点这里直接跳到本应用的权限页，开完回来再点「一键添加」即可成功。 -->
+                    <LinearLayout
+                        android:id="@+id/xiaomiPermBox"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:layout_marginTop="10dp"
+                        android:orientation="vertical"
+                        android:visibility="gone">
+
+                        <com.google.android.material.button.MaterialButton
+                            android:id="@+id/btnXiaomiPerm"
+                            style="?attr/materialButtonOutlinedStyle"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:maxLines="1"
+                            android:textSize="13sp"
+                            android:text="@string/pin_xiaomi_perm" />
+
+                        <TextView
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="4dp"
+                            android:lineSpacingExtra="3dp"
+                            android:text="@string/pin_xiaomi_perm_hint"
+                            android:textColor="?attr/colorOnSurfaceVariant"
+                            android:textSize="12sp" />
+                    </LinearLayout>
                 </LinearLayout>
             </com.google.android.material.card.MaterialCardView>
 

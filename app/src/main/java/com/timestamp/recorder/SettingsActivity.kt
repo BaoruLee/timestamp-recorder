@@ -4,8 +4,10 @@ import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
+import android.view.View
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -126,6 +128,16 @@ class SettingsActivity : BaseActivity() {
         binding.btnPinSingle.setOnClickListener { pinWidget(WidgetSingleProvider::class.java) }
         binding.btnPinCapsule.setOnClickListener { pinWidget(WidgetCapsuleProvider::class.java) }
 
+        // 仅小米 / 红米显示：HyperOS 上 requestPinAppWidget 需要「桌面快捷方式」权限，
+        // 不授予就静默无反应（官方要求用户显式同意，小米把它做成了权限开关）。
+        // 引导用户去开权限，开完再点「一键添加」就能弹确认框了。
+        val isXiaomi = Build.MANUFACTURER.contains("xiaomi", true) ||
+                Build.MANUFACTURER.contains("redmi", true)
+        binding.xiaomiPermBox.visibility = if (isXiaomi) View.VISIBLE else View.GONE
+        if (isXiaomi) {
+            binding.btnXiaomiPerm.setOnClickListener { openMiuiPermEditor() }
+        }
+
         // 事件排序方式
         when (prefs.getString(KEY_SORT_MODE, SORT_MANUAL)) {
             SORT_RECENT -> binding.rbRecent.isChecked = true
@@ -198,5 +210,45 @@ class SettingsActivity : BaseActivity() {
             .setMessage(R.string.pin_guide_msg)
             .setPositiveButton(R.string.i_know, null)
             .show()
+    }
+
+    /**
+     * 跳到 MIUI 的应用权限编辑页（「桌面快捷方式」开关就在里面）。
+     * MIUI 各版本的活动名不固定，按「权限编辑页 → 权限列表页」依次尝试；
+     * 全都打不开（非小米 / 未来改名）→ 退回系统应用详情页，所有 ROM 都有。
+     */
+    private fun openMiuiPermEditor() {
+        val candidates = listOf(
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName(
+                    "com.miui.securitycenter",
+                    "com.miui.permcenter.permissions.PermissionsEditorActivity"
+                )
+                putExtra("extra_pkgname", packageName)
+            },
+            Intent("miui.intent.action.APP_PERM_EDITOR").apply {
+                setClassName(
+                    "com.miui.securitycenter",
+                    "com.miui.permcenter.permissions.PermissionsActivity"
+                )
+                putExtra("extra_pkgname", packageName)
+            }
+        )
+        for (intent in candidates) {
+            try {
+                startActivity(intent)
+                return
+            } catch (_: Exception) {
+                // 这个入口在当前 MIUI 版本上不存在，换下一个
+            }
+        }
+        try {
+            startActivity(
+                Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)
+                    .setData(Uri.parse("package:$packageName"))
+            )
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.toast_no_browser, Toast.LENGTH_SHORT).show()
+        }
     }
 }

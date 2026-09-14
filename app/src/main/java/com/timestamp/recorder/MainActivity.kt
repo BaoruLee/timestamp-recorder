@@ -150,6 +150,13 @@ class MainActivity : BaseActivity() {
     private val pageCallback = object : ViewPager2.OnPageChangeCallback() {
         override fun onPageScrolled(position: Int, positionOffset: Float, offsetPx: Int) {
             moveSlider(position + positionOffset)
+            // 「＋」按钮只属于「事件」页：跟着滑动一起渐隐 / 渐现并往下沉，
+            // 滑过一半就禁点（不可见还能点中就是 bug）；反向拖回来会跟着回来。
+            val fade = if (position == 0) positionOffset else 1f - positionOffset
+            binding.fabAdd.alpha = 1f - fade
+            binding.fabAdd.translationY =
+                fade * resources.getDimensionPixelSize(R.dimen.space_6)
+            binding.fabAdd.isClickable = fade < 0.5f
         }
         override fun onPageSelected(position: Int) {
             if (currentTab != position) {
@@ -921,8 +928,8 @@ class MainActivity : BaseActivity() {
         pageEvents.tvEmpty.visibility = if (events && adapter.itemCount == 0) View.VISIBLE else View.GONE
         pageTimeline.tvEmptyTimeline.visibility =
             if (!events && timelineAdapter.itemCount == 0) View.VISIBLE else View.GONE
-        // 「＋」是用来新建事件的，只在「事件」Tab 下出现；「时间线」Tab 下隐藏
-        binding.fabAdd.visibility = if (events) View.VISIBLE else View.GONE
+        // 「＋」的显隐改由 onPageScrolled 的滑动进度控制（渐隐 / 渐现 + 下沉），
+        // 这里不再 GONE/VISIBLE 硬切 —— 否则会打断滑动中的过渡动画
         // 时间线底轨：只在「时间线」Tab 显示（贯穿屏幕上下那条淡线）
         // 底轨在时间线页内部，跟着页面走，无需代码切换
     }

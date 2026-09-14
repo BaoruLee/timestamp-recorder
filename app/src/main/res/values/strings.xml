@@ -74,6 +74,9 @@
     <string name="widget_capsule_record">记录</string>
     <string name="widget_capsule_missing">事件已删除</string>
     <string name="pin_widget_capsule">胶囊</string>
+    <!-- 小米 / 红米专属：跳「桌面快捷方式」权限 -->
+    <string name="pin_xiaomi_perm">授予「桌面快捷方式」权限（小米机型）</string>
+    <string name="pin_xiaomi_perm_hint">小米桌面要求先开启此权限，一键添加才会弹确认框。点上方按钮跳到权限页开启，返回后再点「一键添加」即可直接上桌面。</string>
 
     <!-- 设置 -->
     <string name="menu_settings">设置</string>
