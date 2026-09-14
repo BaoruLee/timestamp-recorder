@@ -106,11 +106,10 @@
         android:layout_marginEnd="@dimen/space_4"
         android:background="@drawable/bg_bottom_nav">
 
-        <View
+        <com.timestamp.recorder.TabSliderView
             android:id="@+id/tabSlider"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_gravity="start|center_vertical" />
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
 
         <LinearLayout
             android:id="@+id/tabContent"

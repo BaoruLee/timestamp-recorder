@@ -14,11 +14,10 @@
 
     <!-- 选中态滑块：一块会滑动的玻璃胶囊（压在 Tab 内容下层，位置/尺寸由代码算，
          切 Tab 时 220ms 平滑滑过去）。压在下层 = 在 XML 里排在 tabContent 前面。 -->
-    <View
+    <com.timestamp.recorder.TabSliderView
         android:id="@+id/tabSlider"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="start|center_vertical" />
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
     <LinearLayout
         android:id="@+id/tabContent"

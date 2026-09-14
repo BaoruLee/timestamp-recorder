@@ -758,9 +758,6 @@ class MainActivity : BaseActivity() {
     /** 让 [slider] 成为当前生效的滑块，并挂上「布局一变就重新就位（不带动画）」的监听 */
     private fun bindSlider(slider: View) {
         tabSliderRef = slider
-        slider.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            ensureSliderGeometry()
-        }
     }
 
     /** 当前底部栏实测高度（= 内容高 + 导航栏 inset），FAB 据此上移 */
@@ -881,7 +878,6 @@ class MainActivity : BaseActivity() {
         val tl = tabTimelineRef ?: layoutTabTimeline
         setTabLook(ev, eventsSelected)
         setTabLook(tl, !eventsSelected)
-        ensureSliderGeometry()
         moveSlider(currentTab.toFloat())
     }
 
@@ -903,50 +899,18 @@ class MainActivity : BaseActivity() {
         tab.icon.imageTintList = ColorStateList.valueOf(content)
     }
 
-    /** 滑块的尺寸与玻璃底色只在这里保证一次；位置完全交给 [moveSlider] 逐帧驱动 */
-    private fun ensureSliderGeometry() {
-        val slider = tabSliderRef ?: return
-        val parent = slider.parent as? ViewGroup ?: return
-        if (parent.width == 0 || parent.height == 0) return
-        val pad = resources.getDimensionPixelSize(R.dimen.space_1)
-        val insetH = resources.getDimensionPixelSize(R.dimen.space_1).toFloat()
-        val insetV = resources.getDimensionPixelSize(R.dimen.space_2).toFloat()
-        val tabW = (parent.width - 2 * pad) / 2f
-        val lp = slider.layoutParams
-        if (lp.width != (tabW - 2 * insetH).toInt() || lp.height != (parent.height - 2 * insetV).toInt()) {
-            lp.width = (tabW - 2 * insetH).toInt()
-            lp.height = (parent.height - 2 * insetV).toInt()
-            slider.layoutParams = lp
-        }
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                Configuration.UI_MODE_NIGHT_YES
-        if (slider.background == null) {
-            // 白天在浅玻璃上「白上加白」几乎看不出边界，补一圈冷灰蓝描边（夜间用白描边）
-            slider.background = GradientDrawable().apply {
-                cornerRadius = resources.getDimensionPixelSize(R.dimen.radius_lg).toFloat()
-                setColor(if (night) 0x2EFFFFFF else 0x1F000000)
-                setStroke(
-                    resources.getDimensionPixelSize(R.dimen.space_1) / 4,
-                    if (night) 0x33FFFFFF else 0x2E5B6B8C
-                )
-            }
-        }
-    }
-
     /**
      * 滑块位置：由 ViewPager2 的 `onPageScrolled(position, positionOffset)` 逐帧调用，
      * fraction = 当前页 + 滑动进度（0~1 连续）—— 所以滑块是**跟手**的：
      * 手指拖到哪它跟到哪，中途停下它就停（急停），反向拖它就跟回去。
+     *
+     * 几何与配色全部由 [TabSliderView.onDraw] 内部按 View 实际宽高计算
+     * （View 铺满整座岛，胶囊画在 1/2 等分处），不碰任何布局参数 ——
+     * 之前「窄 View 平移 + 改 layoutParams.width」在别的密度机型上算错一档
+     * 就会把整条岛铺满（真机实测踩过），画出来的永远是对的。
      */
     private fun moveSlider(fraction: Float) {
-        val slider = tabSliderRef ?: return
-        val parent = slider.parent as? ViewGroup ?: return
-        if (parent.width == 0) return
-        ensureSliderGeometry()
-        val pad = resources.getDimensionPixelSize(R.dimen.space_1)
-        val insetH = resources.getDimensionPixelSize(R.dimen.space_1).toFloat()
-        val tabW = (parent.width - 2 * pad) / 2f
-        slider.translationX = pad + fraction.coerceIn(0f, 1f) * tabW + insetH
+        (tabSliderRef as? TabSliderView)?.fraction = fraction
     }
 
     /** 统一管理两个列表与各自空状态的可见性 */
