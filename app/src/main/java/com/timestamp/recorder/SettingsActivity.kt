@@ -128,15 +128,19 @@ class SettingsActivity : BaseActivity() {
         binding.btnPinSingle.setOnClickListener { pinWidget(WidgetSingleProvider::class.java) }
         binding.btnPinCapsule.setOnClickListener { pinWidget(WidgetCapsuleProvider::class.java) }
 
-        // 仅小米 / 红米显示：HyperOS 上 requestPinAppWidget 需要「桌面快捷方式」权限，
-        // 不授予就静默无反应（官方要求用户显式同意，小米把它做成了权限开关）。
-        // 引导用户去开权限，开完再点「一键添加」就能弹确认框了。
+        // 权限 / 设置引导：**全机型显示**（各 ROM 对「一键添加」的限制不同），
+        // 文案与跳转目标按机型切换 —— 小米 / 红米推荐先授「桌面快捷方式」权限
+        // （HyperOS 不授予就静默无反应），其他机型走通用系统设置兜底。
         val isXiaomi = Build.MANUFACTURER.contains("xiaomi", true) ||
                 Build.MANUFACTURER.contains("redmi", true)
-        binding.xiaomiPermBox.visibility = if (isXiaomi) View.VISIBLE else View.GONE
-        if (isXiaomi) {
-            binding.btnXiaomiPerm.setOnClickListener { openMiuiPermEditor() }
-        }
+        binding.permBox.visibility = View.VISIBLE
+        binding.btnPermSettings.setText(
+            if (isXiaomi) R.string.pin_perm_btn_miui else R.string.pin_perm_btn
+        )
+        binding.permHint.setText(
+            if (isXiaomi) R.string.pin_perm_hint_miui else R.string.pin_perm_hint
+        )
+        binding.btnPermSettings.setOnClickListener { openPermSettings(isXiaomi) }
 
         // 事件排序方式
         when (prefs.getString(KEY_SORT_MODE, SORT_MANUAL)) {
@@ -213,11 +217,16 @@ class SettingsActivity : BaseActivity() {
     }
 
     /**
-     * 跳到 MIUI 的应用权限编辑页（「桌面快捷方式」开关就在里面）。
-     * MIUI 各版本的活动名不固定，按「权限编辑页 → 权限列表页」依次尝试；
-     * 全都打不开（非小米 / 未来改名）→ 退回系统应用详情页，所有 ROM 都有。
+     * 打开权限 / 应用设置。
+     * 小米：跳 MIUI 权限编辑页（「桌面快捷方式」开关在里面；MIUI 各版本活动名不固定，
+     * 按「权限编辑页 → 权限列表页」依次尝试）；
+     * 其他机型 / 全部打不开 → 系统应用详情页兜底（所有 ROM 都有）。
      */
-    private fun openMiuiPermEditor() {
+    private fun openPermSettings(isXiaomi: Boolean) {
+        if (!isXiaomi) {
+            openAppDetails()
+            return
+        }
         val candidates = listOf(
             Intent("miui.intent.action.APP_PERM_EDITOR").apply {
                 setClassName(
@@ -242,6 +251,11 @@ class SettingsActivity : BaseActivity() {
                 // 这个入口在当前 MIUI 版本上不存在，换下一个
             }
         }
+        openAppDetails()
+    }
+
+    /** 系统应用详情页：所有 ROM 都有的通用兜底入口 */
+    private fun openAppDetails() {
         try {
             startActivity(
                 Intent(android.provider.Settings.ACTION_APPLICATION_DETAILS_SETTINGS)

@@ -380,11 +380,11 @@
                             android:text="@string/pin_widget_capsule" />
                     </LinearLayout>
 
-                    <!-- 仅小米 / 红米机型显示：HyperOS 上 requestPinAppWidget 需要
-                         「桌面快捷方式」权限，不授予就静默无反应（官方要求用户显式同意）。
-                         点这里直接跳到本应用的权限页，开完回来再点「一键添加」即可成功。 -->
+                    <!-- 权限 / 设置引导（全机型显示）：部分 ROM 对「一键添加」有额外限制 ——
+                         小米需要先授予「桌面快捷方式」权限（米系推荐先点一下）；
+                         其他机型点这里前往系统应用设置检查。文案与跳转目标由代码按机型决定。 -->
                     <LinearLayout
-                        android:id="@+id/xiaomiPermBox"
+                        android:id="@+id/permBox"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:layout_marginTop="10dp"
@@ -392,20 +392,21 @@
                         android:visibility="gone">
 
                         <com.google.android.material.button.MaterialButton
-                            android:id="@+id/btnXiaomiPerm"
+                            android:id="@+id/btnPermSettings"
                             style="?attr/materialButtonOutlinedStyle"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:maxLines="1"
                             android:textSize="13sp"
-                            android:text="@string/pin_xiaomi_perm" />
+                            android:text="@string/pin_perm_btn" />
 
                         <TextView
+                            android:id="@+id/permHint"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
                             android:layout_marginTop="4dp"
                             android:lineSpacingExtra="3dp"
-                            android:text="@string/pin_xiaomi_perm_hint"
+                            android:text="@string/pin_perm_hint"
                             android:textColor="?attr/colorOnSurfaceVariant"
                             android:textSize="12sp" />
                     </LinearLayout>
