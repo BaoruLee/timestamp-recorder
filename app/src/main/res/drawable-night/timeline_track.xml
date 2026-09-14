@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 时间线底轨 · 深色版（见 drawable/timeline_track.xml 的说明）。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#26CAC4D0" />
+</shape>

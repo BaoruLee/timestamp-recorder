@@ -30,6 +30,7 @@
     <!-- 内容区必须可滚动：设置项较多时（尤其小屏 / 大字号），
          否则底部的「关于」会够不到 -->
     <androidx.core.widget.NestedScrollView
+        android:id="@+id/scrollContent"
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
@@ -324,7 +325,7 @@
                         android:background="@drawable/bg_note"
                         android:lineSpacingExtra="3dp"
                         android:padding="12dp"
-                        android:text="@string/pin_hyperos_note"
+                        android:text="@string/pin_rom_note"
                         android:textColor="?attr/colorOnSurfaceVariant"
                         android:textSize="12sp" />
 

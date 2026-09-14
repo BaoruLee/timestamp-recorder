@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 胶囊岛的内容（跑在独立窗口里）。
+     ⚠️ 这里**不要**写背景：玻璃背景这次交给**窗口自身**（见 MainActivity 的
+     `w.setBackgroundDrawable(bg_bottom_nav)`）—— 因为范围受限的 background blur
+     很可能就是按「窗口背景」来推导模糊区域的，把窗口背景设成全透明会让它无处可糊。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/islandRoot"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:id="@+id/tabContent"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:orientation="horizontal"
+        android:paddingStart="4dp"
+        android:paddingEnd="4dp">
+
+        <TextView
+            android:id="@+id/tabEvents"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/tab_events"
+            android:textSize="15sp" />
+
+        <TextView
+            android:id="@+id/tabTimeline"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:gravity="center"
+            android:text="@string/tab_timeline"
+            android:textSize="15sp" />
+    </LinearLayout>
+</FrameLayout>

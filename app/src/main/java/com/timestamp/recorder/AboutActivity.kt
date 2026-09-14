@@ -9,7 +9,7 @@ class AboutActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         val binding = ActivityAboutBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.about_title, showBack = true)
+        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.about_title, showBack = true, scrollContent = binding.scrollContent)
 
         binding.tvVersion.text = getString(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 

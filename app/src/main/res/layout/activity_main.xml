@@ -1,168 +1,167 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 主页：底部「事件 / 时间线」双 Tab（参考 Last Time 布局），快捷「＋」按钮上移至 Tab 栏上方 -->
-<androidx.coordinatorlayout.widget.CoordinatorLayout
-    xmlns:android="http://schemas.android.com/apk/res/android"
+<!-- 主页：底部「事件 / 时间线」双 Tab。
+
+     底栏（悬浮胶囊岛）的两种形态（由 MainActivity.syncBarMode 运行时决定）：
+     ① 系统能提供「窗口背景模糊」（HyperOS 高级材质，且用户开关是开的）→ 胶囊岛被放进一个
+        独立窗口，模糊由系统合成器完成，App 端零开销；此时布局里的 bottomBar 会被隐藏；
+     ② 否则 → 用布局里的 bottomBar：半透明静态胶囊（`bg_bottom_nav`），完全不模糊。
+     两个形态共用同一份 Tab 文字与位置坐标，切换时不需要改布局。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:background="@drawable/bg_main_gradient">
+    android:layout_height="match_parent">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/glass_toolbar"
-        app:elevation="0dp">
-
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:title="@string/main_title"
-            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
-
-        <TextView
-            android:id="@+id/tvSubtitle"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:paddingStart="20dp"
-            android:paddingBottom="12dp"
-            android:text="@string/main_subtitle"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textSize="13sp" />
-    </com.google.android.material.appbar.AppBarLayout>
-
-    <!-- 内容区：事件列表 / 时间线列表（按 Tab 切换可见性） -->
-    <FrameLayout
+    <androidx.coordinatorlayout.widget.CoordinatorLayout
+        android:id="@+id/mainHost"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
-        app:layout_behavior="@string/appbar_scrolling_view_behavior">
+        android:background="@drawable/bg_main_gradient">
 
-        <TextView
-            android:id="@+id/tvEmpty"
+        <!-- 时间线底轨（只在「时间线」Tab 显示）：贯穿屏幕上下的一条淡线。
+             放在最前面 = 画在最底层，所以它在工具栏玻璃之下也能透出来，
+             彩色段（各列表项）叠在它上面，于是整条线从屏幕顶端连绵到手势条上方。 -->
+        <View
+            android:id="@+id/timelineTrack"
+            android:layout_width="2dp"
+            android:layout_height="match_parent"
+            android:layout_gravity="top"
+            android:layout_marginStart="@dimen/timeline_line_inset"
+            android:background="@drawable/timeline_track"
+            android:visibility="gone" />
+
+        <com.google.android.material.appbar.AppBarLayout
+            android:id="@+id/appBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="64dp"
-            android:gravity="center"
-            android:lineSpacingExtra="6dp"
-            android:text="@string/empty_events"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textSize="15sp"
-            android:visibility="gone" />
+            android:background="@color/glass_toolbar"
+            app:elevation="0dp">
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerEvents"
+            <com.google.android.material.appbar.MaterialToolbar
+                android:id="@+id/toolbar"
+                android:layout_width="match_parent"
+                android:layout_height="?attr/actionBarSize"
+                app:title="@string/main_title"
+                app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
+
+            <TextView
+                android:id="@+id/tvSubtitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:paddingStart="20dp"
+                android:paddingBottom="12dp"
+                android:text="@string/main_subtitle"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="13sp" />
+        </com.google.android.material.appbar.AppBarLayout>
+
+        <!-- 内容区：事件列表 / 时间线列表（按 Tab 切换可见性） -->
+        <FrameLayout
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="4dp"
-            android:paddingBottom="@dimen/list_bottom_padding"
-            android:scrollbars="vertical" />
+            app:layout_behavior="@string/appbar_scrolling_view_behavior">
 
-        <TextView
-            android:id="@+id/tvEmptyTimeline"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="64dp"
-            android:gravity="center"
-            android:lineSpacingExtra="6dp"
-            android:text="@string/timeline_empty"
-            android:textColor="?attr/colorOnSurfaceVariant"
-            android:textSize="15sp"
-            android:visibility="gone" />
+            <TextView
+                android:id="@+id/tvEmpty"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="64dp"
+                android:gravity="center"
+                android:lineSpacingExtra="6dp"
+                android:text="@string/empty_events"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="15sp"
+                android:visibility="gone" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/recyclerTimeline"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:clipToPadding="false"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:paddingTop="8dp"
-            android:paddingBottom="@dimen/list_bottom_padding"
-            android:scrollbars="vertical"
-            android:visibility="gone" />
-    </FrameLayout>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerEvents"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="4dp"
+                android:paddingBottom="@dimen/list_bottom_padding"
+                android:scrollbars="vertical" />
 
-    <!-- 底部 Tab：事件 / 时间线（高级材质三层结构：
-         bgGlass 承载实时高斯模糊背景（截取背后内容），bgDim 半透明罩统一深浅，
-         bgLiquid 高光描边层，最上层为文字与分隔线） -->
+            <TextView
+                android:id="@+id/tvEmptyTimeline"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="64dp"
+                android:gravity="center"
+                android:lineSpacingExtra="6dp"
+                android:text="@string/timeline_empty"
+                android:textColor="?attr/colorOnSurfaceVariant"
+                android:textSize="15sp"
+                android:visibility="gone" />
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/recyclerTimeline"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:paddingTop="8dp"
+                android:paddingBottom="@dimen/list_bottom_padding"
+                android:scrollbars="vertical"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <!-- 液态玻璃快捷按钮：位置可在设置页切换（左/中/右），上移至底部 Tab 栏上方 -->
+        <ImageButton
+            android:id="@+id/fabAdd"
+            android:layout_width="60dp"
+            android:layout_height="60dp"
+            android:layout_gravity="bottom|end"
+            android:background="@drawable/fab_liquid"
+            android:contentDescription="@string/fab_add"
+            android:elevation="6dp"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:outlineProvider="background"
+            android:scaleType="center"
+            android:src="@drawable/ic_add" />
+    </androidx.coordinatorlayout.widget.CoordinatorLayout>
+
+    <!-- 底栏 = 悬浮胶囊岛（布局内形态）。
+         左右各留 16dp；离手势条 12dp（bottomMargin 由代码再加上导航栏高度）。
+         背景 = bg_bottom_nav 的**半透明静态胶囊**；是否做模糊由 MainActivity.syncBarMode 运行时决定
+         （系统能给就换成独立窗口版，那时这个 bottomBar 会被隐藏）。 -->
     <FrameLayout
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="@dimen/tab_bar_height"
-        android:layout_gravity="bottom">
+        android:layout_gravity="bottom"
+        android:layout_marginStart="@dimen/space_4"
+        android:layout_marginEnd="@dimen/space_4"
+        android:background="@drawable/bg_bottom_nav">
 
-        <!-- 玻璃背景层：运行时由代码替换为截取内容的模糊位图（实时高斯模糊毛玻璃） -->
-        <View
-            android:id="@+id/bgGlass"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-        <!-- 半透明罩：统一明暗玻璃色调，弱化背景内容对比 -->
-        <View
-            android:id="@+id/bgDim"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
-
-        <!-- 高光描边层（液态玻璃高光边） -->
-        <View
-            android:id="@+id/bgLiquid"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:background="@drawable/bg_liquid_bar" />
-
-        <!-- 内容层：Tab 文字与分隔线；底部 padding 由代码按导航栏高度设置，避免被手势条遮挡 -->
         <LinearLayout
             android:id="@+id/tabContent"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:orientation="horizontal"
-            android:paddingStart="10dp"
-            android:paddingEnd="10dp">
+            android:paddingStart="8dp"
+            android:paddingEnd="8dp">
 
             <TextView
                 android:id="@+id/tabEvents"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:background="?attr/selectableItemBackground"
                 android:gravity="center"
                 android:text="@string/tab_events"
-                android:textSize="14sp" />
-
-            <View
-                android:layout_width="1dp"
-                android:layout_height="26dp"
-                android:layout_gravity="center_vertical"
-                android:background="@color/glass_stroke" />
+                android:textSize="15sp" />
 
             <TextView
                 android:id="@+id/tabTimeline"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:background="?attr/selectableItemBackground"
                 android:gravity="center"
                 android:text="@string/tab_timeline"
-                android:textSize="14sp" />
+                android:textSize="15sp" />
         </LinearLayout>
     </FrameLayout>
-
-    <!-- 液态玻璃快捷按钮：位置可在设置页切换（左/中/右），上移至底部 Tab 栏上方 -->
-    <ImageButton
-        android:id="@+id/fabAdd"
-        android:layout_width="60dp"
-        android:layout_height="60dp"
-        android:layout_gravity="bottom|end"
-        android:background="@drawable/fab_liquid"
-        android:contentDescription="@string/fab_add"
-        android:elevation="6dp"
-        android:foreground="?attr/selectableItemBackgroundBorderless"
-        android:outlineProvider="background"
-        android:scaleType="center"
-        android:src="@drawable/ic_add" />
-
-</androidx.coordinatorlayout.widget.CoordinatorLayout>
+</FrameLayout>

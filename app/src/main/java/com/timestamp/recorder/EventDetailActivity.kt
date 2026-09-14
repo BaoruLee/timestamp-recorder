@@ -54,7 +54,20 @@ class EventDetailActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityEventDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.app_name, showBack = true)
+        setupChrome(
+            binding.toolbar, binding.appBar, binding.root, R.string.app_name,
+            showBack = true, scrollContent = binding.recyclerRecords
+        )
+        // 底部「批量操作栏」是固定在屏底的另一块内容：记录列表已经铺到手势条下面了，
+        // 这条操作栏得自己避开小白条（内边距外扩，背景仍然延伸到屏幕底）。
+        androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.selectionBar) { v, insets ->
+            val nav = insets.getInsets(
+                androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom
+            if (v.paddingBottom != nav) {
+                v.setPadding(v.paddingLeft, v.paddingTop, v.paddingRight, nav)
+            }
+            insets
+        }
         repo = EventRepository(this)
         eventId = intent.getLongExtra(EXTRA_EVENT_ID, -1L)
 

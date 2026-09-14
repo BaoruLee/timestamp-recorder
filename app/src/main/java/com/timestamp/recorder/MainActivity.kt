@@ -47,6 +47,9 @@ class MainActivity : BaseActivity() {
         private const val TAB_TIMELINE = 1
         private const val TYPE_MONTH = 0
         private const val TYPE_RECORD = 1
+        /** 底栏形态：布局内的静态胶囊 / 独立窗口 + 系统级背后模糊 */
+        private const val MODE_STATIC = 0
+        private const val MODE_WINDOW_BLUR = 1
         /** 外部（如详情页菜单）指定直接打开时间线 Tab */
         const val EXTRA_OPEN_TIMELINE = "extra_open_timeline"
     }
@@ -91,11 +94,9 @@ class MainActivity : BaseActivity() {
         binding.recyclerTimeline.adapter = timelineAdapter
 
         binding.fabAdd.setOnClickListener { showEditDialog(null) }
-        binding.tabEvents.setOnClickListener { selectTab(TAB_EVENTS) }
-        binding.tabTimeline.setOnClickListener { selectTab(TAB_TIMELINE) }
         applyFabPosition()
-        styleTab()
         setupBottomBar()
+        styleTab()
         // 若从详情页菜单直达时间线 Tab，需在渲染后生效
         if (intent.getBooleanExtra(EXTRA_OPEN_TIMELINE, false)) {
             selectTab(TAB_TIMELINE)
@@ -103,26 +104,28 @@ class MainActivity : BaseActivity() {
     }
 
     /**
-     * 底部 Tab 栏（酷安式毛玻璃 + 彻底沉浸）：
-     * 1. 材质 = 截取 Tab 栏上方内容实时高斯模糊（滚动节流刷新），半透明罩统一
-     *    明暗、顶部 1dp 高光细线——玻璃质感，非廉价液态玻璃；
-     * 2. 沉浸 = root 底部 padding 强制为 0（覆盖 BaseActivity 默认），bottomBar
-     *    高度动态 = 64dp + 导航栏 inset，直接延伸到屏幕底，玻璃背景覆盖手势条
-     *    区域（系统手势条绘制在玻璃之上，自然融合）；Tab 内容层按导航栏高度
-     *    加底部 padding 避开手势条，绝不遮挡；
-     * 3. 全部标准 API + 关闭导航栏对比度强制（BaseActivity），跨品牌一致。
+     * 底部导航栏（**静态玻璃** + 彻底沉浸）。
+     *
+     * ⚠️ 这里刻意**不做实时模糊**。Android 没有「模糊身后内容」的公开 API，
+     * 想看到背后内容只能自己「截屏 → 模糊 → 回填」；而那条路必然要重绘整棵视图树，
+     * 且截到的永远是**上一帧** —— 结果就是延迟肉眼可见 + 滚动掉帧，无论怎么加压都追不上
+     * 内容（已实测两版，均如此）。所以整块放弃，改用静态半透明玻璃：零延迟、零额外开销。
+     *
+     * 沉浸做法：
+     * - 根布局四周 padding 恒为 0（顶部内边距由 BaseActivity 加在 AppBar 上）；
+     * - bottomBar 高度 = 64dp + 导航栏 inset，一直铺到屏幕最底，系统手势条浮在玻璃之上；
+     * - Tab 内容层按导航栏高度加底部 padding，文字绝不被手势条遮挡。
      */
     private fun setupBottomBar() {
-        applyGlassStyle()
-        // 沉浸：root 底部 padding 恒为 0，底部安全区交给 bottomBar 动态高度
         val immersive = object : androidx.core.view.OnApplyWindowInsetsListener {
             override fun onApplyWindowInsets(
                 v: android.view.View,
                 insets: androidx.core.view.WindowInsetsCompat
             ): androidx.core.view.WindowInsetsCompat {
-                val top = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()).top
+                // 顶部内边距由 BaseActivity 加在 AppBar 上（状态栏被工具栏罩住）；
+                // 这里只把「导航栏高度」交给底部栏，根布局四周 padding 保持 0。
                 val nav = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom
-                v.setPadding(0, top, 0, 0)
+                v.setPadding(0, 0, 0, 0)
                 applyBarLayout(nav)
                 return insets
             }
@@ -139,96 +142,156 @@ class MainActivity : BaseActivity() {
                 applyBarLayout(0)
             }
         }
-        val scrollListener = object : RecyclerView.OnScrollListener() {
-            override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
-                if (newState == RecyclerView.SCROLL_STATE_IDLE) updateGlassBackdrop()
-            }
-            override fun onScrolled(rv: RecyclerView, dx: Int, dy: Int) {
-                // 滚动中节流更新，实现实时模糊
-                val now = android.os.SystemClock.uptimeMillis()
-                if (now - lastGlassUpdate > 60L) {
-                    lastGlassUpdate = now
-                    updateGlassBackdrop()
-                }
-            }
-        }
-        binding.recyclerEvents.addOnScrollListener(scrollListener)
-        binding.recyclerTimeline.addOnScrollListener(scrollListener)
-        updateGlassBackdrop()
+        syncBarMode()
     }
-
-    /** 动态栏高 = 内容高 + 导航栏 inset；内容层上移避开手势条 */
-    private fun applyBarLayout(nav: Int) {
-        val barH = resources.getDimensionPixelSize(R.dimen.tab_bar_height) + nav
-        binding.bottomBar.layoutParams.height = barH
-        binding.tabContent.setPadding(0, 0, 0, nav)
-        updateGlassBackdrop()
-    }
-
-    /** 高斯模糊高级材质：半透明玻璃底 + RenderEffect 模糊；明暗色代码控制 */
-    private fun applyGlassStyle() {
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                Configuration.UI_MODE_NIGHT_YES
-        binding.bgGlass.setBackgroundColor(
-            if (night) Color.argb(0xE6, 0x14, 0x12, 0x18)
-            else Color.argb(0xCC, 0xFF, 0xFF, 0xFF))
-        binding.bgDim.setBackgroundColor(
-            if (night) Color.argb(0x59, 0x14, 0x12, 0x18)
-            else Color.argb(0x40, 0xFF, 0xFF, 0xFF))
-        // 高斯模糊作用于玻璃层自身（RenderEffect 只影响本层，Tab 文字在兄弟层不受影响）
-        BlurHelper.applyBlur(binding.bgGlass, 26f)
-    }
-
-    private var lastGlassUpdate = 0L
 
     /**
-     * 实时毛玻璃背景：隐藏 bottomBar 后 root.draw 同步截取其背后内容（dispatchDraw
-     * 会跳过 INVISIBLE 的 View，截取到的是纯背后内容，位置精确、无自身/FAB 残影），
-     * 高斯模糊后回填为玻璃背景；滚动中节流刷新实现实时模糊。
+     * 底栏形态：系统能给模糊就给（胶囊岛放进独立窗口，模糊交给系统合成器，App 端零开销、
+     * 真·实时）；给不了就是布局内的**半透明静态胶囊**（完全不模糊）。
+     *
+     * ⚠️ 刻意**不做**两件事：
+     * 1. App 自己截屏 / 着色器算模糊的兜底 —— 用户关掉高级材质（多半为了省电、流畅）时
+     *    还硬糊一层，等于无视系统级的显示偏好；
+     * 2. 跟随「材质风格」（柔光玻璃 / 轻透磨砂）—— 实测该差异不在系统模糊层
+     *    （SurfaceFlinger 输出逐字节相同），是 MIUI 内部 `MaterialToken` 实现的，
+     *    第三方 App 没有公开接口；硬跟只能自己编透明度/半径，反而离"系统自己的渲染"更远。
+     *
+     * 因为「高级材质」是**系统设置**，用户可能在我们退到后台时改，所以 onResume 会再调一次。
      */
-    private fun updateGlassBackdrop() {
-        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.O) return
-        val bar = binding.bottomBar
-        if (bar.width <= 0 || bar.height <= 0) {
-            bar.post { updateGlassBackdrop() }
-            return
+    private fun syncBarMode() {
+        val want = if (SystemBlur.isUsable(this)) MODE_WINDOW_BLUR else MODE_STATIC
+        if (want != barMode) {
+            barMode = want
+            // 换形态前先收掉旧窗口，避免窗口残留 / 旧引用被继续使用
+            glassDialog?.dismiss()
+            glassDialog = null
+            islandW = 0
+            islandH = 0
+            if (want == MODE_WINDOW_BLUR) {
+                binding.bottomBar.visibility = View.GONE
+                buildIslandWindow()
+            } else {
+                binding.bottomBar.visibility = View.VISIBLE
+                tabEventsRef = binding.tabEvents
+                tabTimelineRef = binding.tabTimeline
+            }
+            tabEventsRef?.setOnClickListener { selectTab(TAB_EVENTS) }
+            tabTimelineRef?.setOnClickListener { selectTab(TAB_TIMELINE) }
         }
-        val root = binding.root
-        val w = bar.width
-        val h = bar.height
-        val x = bar.left.coerceIn(0, maxOf(0, root.width - w))
-        val y = bar.top.coerceIn(0, maxOf(0, root.height - h))
-        val prev = bar.visibility
-        bar.visibility = View.INVISIBLE
-        try {
-            val rootBmp = Bitmap.createBitmap(root.width, root.height, Bitmap.Config.ARGB_8888)
-            root.draw(android.graphics.Canvas(rootBmp))
-            bar.visibility = prev
-            val crop = Bitmap.createBitmap(rootBmp, x, y, w, h)
-            rootBmp.recycle()
-            binding.bgGlass.setBackground(BitmapDrawable(resources, blurBitmap(crop)))
-            crop.recycle()
-        } catch (_: Exception) {
-            bar.visibility = prev
-        }
+        applyBarLayout(navInsetPx)
+        styleTab()
     }
 
-    /** 缩放降采样 + 平滑放大，等效中等强度高斯模糊（内容可辨、玻璃质感） */
-    private fun blurBitmap(src: Bitmap): Bitmap {
-        val scale = 4
-        val sw = maxOf(1, src.width / scale)
-        val sh = maxOf(1, src.height / scale)
-        val small = Bitmap.createScaledBitmap(src, sw, sh, true)
-        val result = Bitmap.createScaledBitmap(small, src.width, src.height, true)
-        small.recycle()
-        return result
+    /** 底栏当前形态（-1 = 尚未定过，首次必然进入初始化分支） */
+    private var barMode = -1
+
+    /**
+     * 胶囊岛独立窗口 + 系统级「窗口背景模糊」（HyperOS 高级材质）。
+     * 关键差异：窗口背景是**半透明胶囊玻璃**（`bg_bottom_nav` 原样使用，不做运行时改色）
+     * 而不是全透明 —— 范围受限的模糊区域靠它推导。模糊半径用固定档
+     * `glass_blur_radius`（材质固定一档，不跟随系统「材质风格」）。
+     */
+    private fun buildIslandWindow() {
+        val dlg = android.app.Dialog(this, R.style.Theme_Timestamp_GlassBar)
+        val content = layoutInflater.inflate(R.layout.view_bottom_nav, null)
+        dlg.setContentView(content)
+        dlg.setCancelable(false)
+        dlg.setCanceledOnTouchOutside(false)
+
+        tabEventsRef = content.findViewById(R.id.tabEvents)
+        tabTimelineRef = content.findViewById(R.id.tabTimeline)
+        tabEventsRef?.setOnClickListener { selectTab(TAB_EVENTS) }
+        tabTimelineRef?.setOnClickListener { selectTab(TAB_TIMELINE) }
+
+        dlg.window?.let { w ->
+            w.setDimAmount(0f)
+            w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            // 不吃焦点、不拦截窗口外的触摸（岛外的滚动 / 点击照常传给下面的列表）
+            w.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+            )
+            w.setGravity(Gravity.BOTTOM)
+            SystemBlur.attach(
+                dlg,
+                resources.getDimensionPixelSize(R.dimen.glass_blur_radius),
+                resources.getDrawable(R.drawable.bg_bottom_nav, theme)
+            )
+        }
+        dlg.show()
+        glassDialog = dlg
+        islandW = 0
+        islandH = 0
+        applyIslandWindowLayout()
+        styleTab()
     }
+
+    /** 让窗口与「布局内那颗胶囊」的位置、尺寸完全一致 */
+    private fun applyIslandWindowLayout() {
+        val w = glassDialog?.window ?: return
+        val wantW = resources.displayMetrics.widthPixels -
+                2 * resources.getDimensionPixelSize(R.dimen.space_4)
+        val wantH = resources.getDimensionPixelSize(R.dimen.tab_bar_height)
+        if (islandW == wantW && islandH == wantH) return
+        val lp = w.attributes
+        lp.width = wantW
+        lp.height = wantH
+        lp.gravity = Gravity.BOTTOM
+        lp.y = resources.getDimensionPixelSize(R.dimen.island_bottom_gap)
+        w.attributes = lp
+        islandW = wantW
+        islandH = wantH
+    }
+
+    private var glassDialog: android.app.Dialog? = null
+    private var islandW = 0
+    private var islandH = 0
+
+    /**
+     * 胶囊岛：高度固定，只调整「离底部多远」= 导航栏高度 + 12dp 呼吸感。
+     * ⚠️ 直接改 layoutParams 字段不会触发重新布局，必须整体写回；而 inset 回调里无条件写回
+     * 又会引起布局死循环，所以统一「数值变了才写」。
+     */
+    private fun applyBarLayout(nav: Int) {
+        navInsetPx = nav
+        barHeightPx = resources.getDimensionPixelSize(R.dimen.tab_bar_height)
+        if (glassDialog != null) {
+            applyIslandWindowLayout()
+        } else {
+            // 胶囊岛：高度固定，只调整「离底部多远」= 导航栏高度 + 12dp 呼吸感
+            val lp = binding.bottomBar.layoutParams as android.view.ViewGroup.MarginLayoutParams
+            val want = nav + resources.getDimensionPixelSize(R.dimen.island_bottom_gap)
+            if (lp.bottomMargin != want) {
+                lp.bottomMargin = want
+                binding.bottomBar.layoutParams = lp
+            }
+        }
+        applyFabPosition()
+    }
+
+    private var navInsetPx = 0
+
+    /** 当前生效的两个 Tab 文本视图 */
+    private var tabEventsRef: TextView? = null
+    private var tabTimelineRef: TextView? = null
+
+    /** 当前底部栏实测高度（= 内容高 + 导航栏 inset），FAB 据此上移 */
+    private var barHeightPx = 0
 
     override fun onResume() {
         super.onResume()
         refresh()
+        // 用户可能在系统里改了「高级材质」开关或「材质风格」，回到前台时重新对齐
+        syncBarMode()
         applyFabPosition()
         WidgetRecordHelper.refreshAll(this)
+    }
+
+    override fun onDestroy() {
+        // 独立窗口要收掉，避免窗口泄漏
+        glassDialog?.dismiss()
+        glassDialog = null
+        super.onDestroy()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
@@ -245,30 +308,38 @@ class MainActivity : BaseActivity() {
                     appear,
                     android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
             }
-            // 窗口 insets 在此后才完全就绪：强制应用沉浸布局 + 刷新模糊背景
+            // 窗口 insets 在此后才完全就绪：强制应用一次沉浸布局
             val insets = androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
             if (insets != null) {
-                val top = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.systemBars()).top
                 val nav = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom
-                binding.root.setPadding(0, top, 0, 0)
+                binding.root.setPadding(0, 0, 0, 0)
                 applyBarLayout(nav)
             }
-            updateGlassBackdrop()
         }
     }
 
-    /** 快捷按钮位置：左 / 中 / 右（设置页可切换，立即生效）；统一上移至底部 Tab 栏上方 */
+    /** 快捷按钮位置：左 / 中 / 右（设置页可切换）；底边距跟随底部栏实测高度，始终悬在栏上方 */
     private fun applyFabPosition() {
         val pos = getSharedPreferences(SettingsActivity.PREFS, MODE_PRIVATE)
             .getString(SettingsActivity.KEY_FAB_POS, SettingsActivity.FAB_END) ?: SettingsActivity.FAB_END
-        val lp = binding.fabAdd.layoutParams as CoordinatorLayout.LayoutParams
-        lp.gravity = when (pos) {
+        val gravity = when (pos) {
             SettingsActivity.FAB_START -> Gravity.START or Gravity.BOTTOM
             SettingsActivity.FAB_CENTER -> Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
             else -> Gravity.END or Gravity.BOTTOM
         }
         val m = resources.getDimensionPixelSize(R.dimen.fab_margin)
-        val bottom = resources.getDimensionPixelSize(R.dimen.fab_bottom_margin)
+        // FAB 永远悬在胶囊岛上方：岛离底距离 + 岛高 + 一点呼吸感
+        val bottom = if (barHeightPx > 0) {
+            navInsetPx + resources.getDimensionPixelSize(R.dimen.island_bottom_gap) +
+                    barHeightPx + resources.getDimensionPixelSize(R.dimen.space_3)
+        } else {
+            resources.getDimensionPixelSize(R.dimen.fab_bottom_margin)
+        }
+        val lp = binding.fabAdd.layoutParams as CoordinatorLayout.LayoutParams
+        // 值没变就不写回：避免在 inset 回调里反复 requestLayout
+        if (lp.gravity == gravity && lp.leftMargin == m && lp.topMargin == m &&
+            lp.rightMargin == m && lp.bottomMargin == bottom) return
+        lp.gravity = gravity
         lp.setMargins(m, m, m, bottom)
         binding.fabAdd.layoutParams = lp
     }
@@ -292,30 +363,39 @@ class MainActivity : BaseActivity() {
         currentTab = tab
         styleTab()
         updateVisibility()
-        updateGlassBackdrop()
     }
 
-    /** 选中 Tab = 事件色胶囊高亮 + 主题色加粗；未选中 = 透明 + 次要色 */
+    /** 选中 Tab = 主题色胶囊高亮 + 加粗；未选中 = 透明 + 次要色。
+     *  底栏可能在布局内、也可能在独立窗口里，这里统一取当前生效的那个。 */
     private fun styleTab() {
         val eventsSelected = currentTab == TAB_EVENTS
-        setTabLook(binding.tabEvents, eventsSelected)
-        setTabLook(binding.tabTimeline, !eventsSelected)
+        setTabLook(tabEventsRef ?: binding.tabEvents, eventsSelected)
+        setTabLook(tabTimelineRef ?: binding.tabTimeline, !eventsSelected)
     }
 
+    /**
+     * 选中 Tab = 一块**大圆角玻璃胶囊**（只在玻璃上加一档白微光，不做彩色填充）
+     * + 近白文字；未选中 = 纯文字、次要色。对齐参考图那种「玻璃里有块玻璃」的观感。
+     * 胶囊左右各内缩 8dp，视觉上不贴边。
+     */
     private fun setTabLook(tv: TextView, selected: Boolean) {
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES
         if (selected) {
-            val r = resources.displayMetrics.density
-            tv.background = GradientDrawable().apply {
-                cornerRadius = resources.getDimensionPixelSize(R.dimen.radius_lg).toFloat()
-                setColor((tabPrimary and 0x00FFFFFF) or 0x26000000.toInt())
-                setStroke((1 * r).toInt(), (tabPrimary and 0x00FFFFFF) or 0x3D000000.toInt())
-            }
-            tv.setTextColor(tabPrimary)
-            tv.typeface = Typeface.DEFAULT_BOLD
+            // 岛内的选中态 = 一块内嵌胶囊（左右 4dp、上下 8dp 内缩，半径 20dp）
+            val insetH = resources.getDimensionPixelSize(R.dimen.space_1)
+            val insetV = resources.getDimensionPixelSize(R.dimen.space_2)
+            val fill = if (night) 0x24FFFFFF else 0x18000000
+            tv.background = android.graphics.drawable.InsetDrawable(
+                GradientDrawable().apply {
+                    cornerRadius = resources.getDimensionPixelSize(R.dimen.radius_lg).toFloat()
+                    setColor(fill)
+                }, insetH, insetV, insetH, insetV
+            )
+            tv.setTextColor(if (night) 0xFFEDEAF3.toInt() else 0xFF16181C.toInt())
         } else {
             tv.background = null
             tv.setTextColor(tabOnSurfaceVariant)
-            tv.typeface = Typeface.DEFAULT
         }
     }
 
@@ -327,6 +407,10 @@ class MainActivity : BaseActivity() {
         binding.tvEmpty.visibility = if (events && adapter.itemCount == 0) View.VISIBLE else View.GONE
         binding.tvEmptyTimeline.visibility =
             if (!events && timelineAdapter.itemCount == 0) View.VISIBLE else View.GONE
+        // 「＋」是用来新建事件的，只在「事件」Tab 下出现；「时间线」Tab 下隐藏
+        binding.fabAdd.visibility = if (events) View.VISIBLE else View.GONE
+        // 时间线底轨：只在「时间线」Tab 显示（贯穿屏幕上下那条淡线）
+        binding.timelineTrack.visibility = if (events) View.GONE else View.VISIBLE
     }
 
     // ---------- 菜单（设置 + 统计 + 教程；时间线走底部 Tab） ----------
@@ -353,7 +437,6 @@ class MainActivity : BaseActivity() {
         adapter.submit(events)
         timelineAdapter.submit(repo.getAllRecords())
         updateVisibility()
-        updateGlassBackdrop()
     }
 
     private fun quickRecord(event: TimestampEvent) {
@@ -514,6 +597,13 @@ class MainActivity : BaseActivity() {
 
         private val items = mutableListOf<TimelineItem>()
 
+        /**
+         * 每个列表项的「代表色」，与 [items] 一一对应：
+         * 记录 = 该记录事件的颜色；月份标题 = **该月首条记录**的颜色
+         * （这样月份行和它下面的记录同色，不会在月份处突然换个颜色）。
+         */
+        private var colors = IntArray(0)
+
         fun submit(records: List<TimelineRecord>) {
             items.clear()
             // 记录已按时间倒序；LinkedHashMap 保持「新月份在前」的插入顺序
@@ -526,8 +616,20 @@ class MainActivity : BaseActivity() {
                 items.add(TimelineItem.Month(key, list.size))
                 items.addAll(list.map { TimelineItem.Record(it) })
             }
+            // 从后往前推：月份取紧随其后那条记录的颜色
+            colors = IntArray(items.size)
+            for (i in items.indices.reversed()) {
+                colors[i] = when (val it = items[i]) {
+                    is TimelineItem.Record -> it.rec.eventColor
+                    is TimelineItem.Month -> if (i + 1 < items.size) colors[i + 1] else 0
+                }
+            }
             notifyDataSetChanged()
         }
+
+        /** 上一条的颜色（用于渐变过渡）；没有上一条 → null（顶部淡入） */
+        private fun prevColor(position: Int): Int? =
+            if (position > 0 && colors[position - 1] != 0) colors[position - 1] else null
 
         override fun getItemViewType(position: Int): Int =
             if (items[position] is TimelineItem.Month) TYPE_MONTH else TYPE_RECORD
@@ -545,41 +647,36 @@ class MainActivity : BaseActivity() {
 
         override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
             when (val item = items[position]) {
-                is TimelineItem.Month -> (holder as MonthVH).bind(item)
-                is TimelineItem.Record -> (holder as RecordVH).bind(item.rec)
+                is TimelineItem.Month -> (holder as MonthVH).bind(item, position)
+                is TimelineItem.Record -> (holder as RecordVH).bind(item.rec, position)
             }
         }
 
         inner class MonthVH(private val b: ItemTimelineMonthBinding) : RecyclerView.ViewHolder(b.root) {
-            fun bind(item: TimelineItem.Month) {
+            fun bind(item: TimelineItem.Month, position: Int) {
                 b.tvMonth.text = item.key.label
                 b.tvMonthCount.text = getString(R.string.timeline_month_count, item.count)
-                // 月份行：线 / 刻度用次要色，弱于事件色的记录行
+                // 竖线：与上下相邻记录之间做颜色渐变（月份行不再是灰色，而是接住该月的颜色）
+                val own = colors[position]
+                b.vLine.background = TimelineLine.gradient(prevColor(position), own)
+                // 刻度点：该月颜色（半透明，弱于记录节点）；无颜色时退回次要色
                 val dim = com.google.android.material.color.MaterialColors.getColor(
                     b.root, com.google.android.material.R.attr.colorOnSurfaceVariant)
-                b.vLine.background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = resources.displayMetrics.density
-                    setColor((dim and 0x00FFFFFF) or 0x38000000.toInt())
-                }
                 b.vDot.background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(dim)
+                    setColor(if (own != 0) TimelineLine.withAlpha(own, 0x99) else dim)
                 }
             }
         }
 
         inner class RecordVH(private val b: ItemTimelineRecordBinding) : RecyclerView.ViewHolder(b.root) {
-            fun bind(rec: TimelineRecord) {
+            fun bind(rec: TimelineRecord, position: Int) {
                 b.tvEventName.text = rec.eventName
                 b.tvTime.text = TimeFormat.short(rec.millis)
                 b.tvRelative.text = TimeFormat.relative(this@MainActivity, rec.millis)
-                // 事件色染色：竖线 + 节点都跟随该记录所属事件的颜色
-                b.vLine.background = GradientDrawable().apply {
-                    shape = GradientDrawable.RECTANGLE
-                    cornerRadius = resources.displayMetrics.density
-                    setColor(rec.eventColor)
-                }
+                // 竖线：从上一条的颜色渐变到本条的，条与条之间不再硬切
+                b.vLine.background = TimelineLine.gradient(prevColor(position), rec.eventColor)
+                // 节点：本记录的事件色（实心，作为「这一刻」的标记）
                 b.vDot.background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(rec.eventColor)

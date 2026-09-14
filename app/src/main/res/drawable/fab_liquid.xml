@@ -1,35 +1,21 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 液态玻璃（Liquid Glass）风格按钮背景：半透明渐变 + 边缘高光 + 顶部光斑 -->
+<!-- 快捷「＋」按钮 · 浅色。
+     与底部 Tab 栏用同一套玻璃材质（同色系渐变 + 同 1dp 描边），观感统一；
+     不再用旧版那块偏心的「顶部光斑」，避免和底栏不是一家人。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
-    <!-- 玻璃本体：半透明白色渐变 -->
     <item>
         <shape android:shape="oval">
             <gradient
                 android:angle="270"
-                android:startColor="#E8FFFFFF"
-                android:centerColor="#B8FFFFFF"
-                android:endColor="#70FFFFFF" />
+                android:startColor="#F2FFFFFF"
+                android:endColor="#E8FFFFFF" />
         </shape>
     </item>
-    <!-- 顶部高光光斑 -->
-    <item
-        android:insetTop="4dp"
-        android:insetLeft="4dp"
-        android:insetRight="38dp"
-        android:insetBottom="38dp">
-        <shape android:shape="oval">
-            <gradient
-                android:angle="45"
-                android:startColor="#A6FFFFFF"
-                android:endColor="#00FFFFFF" />
-        </shape>
-    </item>
-    <!-- 边缘描边（液态高光边） -->
     <item>
         <shape android:shape="oval">
             <stroke
                 android:width="1dp"
-                android:color="#59FFFFFF" />
+                android:color="#33FFFFFF" />
         </shape>
     </item>
 </layer-list>

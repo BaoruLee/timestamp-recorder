@@ -17,5 +17,20 @@
         <item name="colorOutline">@color/md_outline</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">true</item>
+        <!-- 窗口背景 = 页面同款渐变：系统栏等任何未被根布局覆盖的区域都不会露出黑/白底 -->
+        <item name="android:windowBackground">@drawable/bg_main_gradient</item>
+    </style>
+
+    <!-- 胶囊岛独立窗口的专用主题：**floating**（关键！非 floating 会铺满全屏 → 整屏被模糊
+         且挡掉全部触摸）+ 无 dim、无窗口动画。窗口背景由代码设为半透明胶囊玻璃。 -->
+    <style name="Theme.Timestamp.GlassBar" parent="Theme.Material3.DayNight.NoActionBar">
+        <item name="android:windowIsFloating">true</item>
+        <item name="android:windowIsTranslucent">true</item>
+        <item name="android:windowBackground">@drawable/bg_bottom_nav</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:backgroundDimEnabled">false</item>
+        <item name="android:windowAnimationStyle">@null</item>
+        <item name="android:windowMinWidthMajor">1%</item>
+        <item name="android:windowMinWidthMinor">1%</item>
     </style>
 </resources>

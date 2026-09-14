@@ -23,7 +23,7 @@ class StatsActivity : BaseActivity() {
         super.onCreate(savedInstanceState)
         binding = ActivityStatsBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.stats_title, showBack = true)
+        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.stats_title, showBack = true, scrollContent = binding.scrollContent)
         repo = EventRepository(this)
 
         val focusId = intent.getLongExtra(EXTRA_FOCUS_EVENT_ID, -1L)

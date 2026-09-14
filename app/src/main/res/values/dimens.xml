@@ -15,9 +15,16 @@
     <dimen name="space_5">20dp</dimen>
     <dimen name="space_6">24dp</dimen>
 
-    <!-- 底部 Tab（事件 / 时间线）与 FAB 上移 -->
-    <dimen name="tab_bar_height">64dp</dimen>
+    <!-- 底部胶囊岛（事件 / 时间线）与 FAB -->
+    <dimen name="tab_bar_height">56dp</dimen>
+    <dimen name="island_bottom_gap">12dp</dimen>
     <dimen name="fab_margin">24dp</dimen>
     <dimen name="fab_bottom_margin">96dp</dimen>
     <dimen name="list_bottom_padding">140dp</dimen>
+
+    <!-- 窗口版胶囊岛的模糊半径（系统级 background blur，固定一档，不跟随系统材质风格） -->
+    <dimen name="glass_blur_radius">14dp</dimen>
+
+    <!-- 时间线竖线距屏幕左边的距离 = 列表 paddingStart 16dp + 线区宽 22dp/2 - 线宽 2dp/2 -->
+    <dimen name="timeline_line_inset">26dp</dimen>
 </resources>

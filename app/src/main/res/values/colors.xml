@@ -27,7 +27,8 @@
     <!-- 毛玻璃（Glassmorphism） -->
     <color name="glass_card">#E8FFFFFF</color>
     <color name="glass_stroke">#1A1565C0</color>
-    <color name="glass_toolbar">#D9FBF8FF</color>
+    <!-- 工具栏玻璃：刻意留透（75%）—— 时间线底轨要从工具栏底下透出来，屏幕上下才连成一条 -->
+    <color name="glass_toolbar">#BFFBF8FF</color>
 
     <!-- 事件分类色板（12 色） -->
     <color name="ev_red">#E53935</color>

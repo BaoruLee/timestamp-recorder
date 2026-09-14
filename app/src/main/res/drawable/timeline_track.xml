@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 时间线「贯穿屏幕上下」的底轨：一条淡淡的竖线，从屏幕顶端一直拉到手势条上方。
+     彩色部分由各列表项按事件色画渐变叠在上面，底轨只负责让线在首项之前、末项之后
+     以及被工具栏遮挡的那一段依然连续 —— 时间连绵不绝。 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="#1F44474F" />
+</shape>

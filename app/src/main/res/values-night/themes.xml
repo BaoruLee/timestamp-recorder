@@ -17,5 +17,7 @@
         <item name="colorOutline">@color/md_outline</item>
         <item name="android:statusBarColor">@android:color/transparent</item>
         <item name="android:windowLightStatusBar">false</item>
+        <!-- 窗口背景 = 页面同款渐变：系统栏等任何未被根布局覆盖的区域都不会露出黑/白底 -->
+        <item name="android:windowBackground">@drawable/bg_main_gradient</item>
     </style>
 </resources>

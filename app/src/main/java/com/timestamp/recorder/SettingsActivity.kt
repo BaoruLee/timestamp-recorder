@@ -85,7 +85,7 @@ class SettingsActivity : BaseActivity() {
         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
         // 统一工具栏 + 沉浸式 + 字体（由 BaseActivity 处理）
-        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.settings_title, showBack = true)
+        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.settings_title, showBack = true, scrollContent = binding.scrollContent)
 
         when (prefs.getString(KEY_FAB_POS, FAB_END)) {
             FAB_START -> binding.rbStart.isChecked = true
@@ -173,12 +173,26 @@ class SettingsActivity : BaseActivity() {
     private fun pinWidget(provider: Class<*>) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             val manager = AppWidgetManager.getInstance(this)
-            if (manager.requestPinAppWidget(ComponentName(this, provider), null, null)) {
-                Toast.makeText(this, R.string.toast_pin_ok, Toast.LENGTH_LONG).show()
-                return
+            // 先问桌面到底支不支持：部分 ROM（真我 realme UI 等）不实现这个接口，
+            // 有的甚至返回 true 却毫无反应 —— 所以既要预检能力，也要判请求返回值。
+            val supported = try {
+                manager.isRequestPinAppWidgetSupported
+            } catch (_: Exception) {
+                false
+            }
+            if (supported) {
+                val requested = try {
+                    manager.requestPinAppWidget(ComponentName(this, provider), null, null)
+                } catch (_: Exception) {
+                    false
+                }
+                if (requested) {
+                    Toast.makeText(this, R.string.toast_pin_ok, Toast.LENGTH_LONG).show()
+                    return
+                }
             }
         }
-        // 桌面未开放该能力（小米 / MIUI 实测返回 false）：退回手动添加指引
+        // 桌面未开放该能力（小米 HyperOS / 真我 realme UI 等实测无效）：退回手动添加指引
         MaterialAlertDialogBuilder(this)
             .setTitle(R.string.pin_guide_title)
             .setMessage(R.string.pin_guide_msg)

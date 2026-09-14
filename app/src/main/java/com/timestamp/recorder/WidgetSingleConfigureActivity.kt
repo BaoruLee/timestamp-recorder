@@ -24,40 +24,27 @@ import com.timestamp.recorder.databinding.ItemWidgetBindBinding
  * 单事件小组件配置页：选择该小组件要绑定的目标事件。
  * 绑定后桌面显示该事件色大按钮，点击即记录该事件。
  */
-class WidgetSingleConfigureActivity : AppCompatActivity() {
+class WidgetSingleConfigureActivity : BaseActivity() {
 
     private lateinit var binding: ActivityWidgetConfigureBinding
     private lateinit var repo: EventRepository
     private var widgetId: Int = AppWidgetManager.INVALID_APPWIDGET_ID
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        DynamicColors.applyToActivityIfAvailable(this)
-        super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
-        )
+        super.onCreate(savedInstanceState)   // BaseActivity：动态取色 + 沉浸式，各页统一
         binding = ActivityWidgetConfigureBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        // 与其他页面共用同一套沉浸逻辑（本页没有 AppBar，顶部内边距落在 toolbar 上）
+        setupChrome(
+            binding.toolbar, null, binding.root,
+            R.string.widget_single_bind_title, showBack = true,
+            scrollContent = binding.recyclerBind
+        )
         repo = EventRepository(this)
         widgetId = intent?.getIntExtra(AppWidgetManager.EXTRA_APPWIDGET_ID, AppWidgetManager.INVALID_APPWIDGET_ID)
             ?: AppWidgetManager.INVALID_APPWIDGET_ID
 
-        binding.toolbar.title = getString(R.string.widget_single_bind_title)
         binding.tvHint.text = getString(R.string.widget_single_bind_hint)
-
-        ViewCompat.setOnApplyWindowInsetsListener(binding.toolbar) { v, insets ->
-            val top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
-            v.updatePadding(top = top)
-            insets
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
-            val bottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-            v.updatePadding(bottom = bottom)
-            insets
-        }
-
-        binding.toolbar.setNavigationOnClickListener { finish() }
 
         val events = repo.getEvents()
         binding.recyclerBind.layoutManager = LinearLayoutManager(this)
