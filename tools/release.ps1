@@ -126,7 +126,7 @@ $body = @{
 } | ConvertTo-Json
 
 $rel = Invoke-RestMethod -Method Post `
-    -Uri "https://api.github.com/repos/BaoruLee/timestamp-recorder/releases" `
+    -Uri "https://api.github.com/repos/baoru0908/timestamp-recorder/releases" `
     -Headers $headers -Body $body -ContentType "application/json"
 
 $uploadUri = $rel.upload_url -replace '\{.*\}', ''

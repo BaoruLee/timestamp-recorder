@@ -8,8 +8,13 @@ package com.timestamp.recorder
  */
 object Links {
 
-    /** 仓库主页 */
-    const val REPO = "https://github.com/BaoruLee/timestamp-recorder"
+    /**
+     * 仓库主页。
+     *
+     * 注意用**当前**的账号名：GitHub 账号从 `BaoruLee` 改名为 `baoru0908` 之后，
+     * 旧地址只是靠重定向撑着，一旦旧用户名被他人注册就会失效。
+     */
+    const val REPO = "https://github.com/baoru0908/timestamp-recorder"
 
     /** 问题反馈 / 建议 */
     const val ISSUES = "$REPO/issues"

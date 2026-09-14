@@ -19,7 +19,7 @@ import sys
 import urllib.error
 import urllib.request
 
-REPO = "BaoruLee/timestamp-recorder"
+REPO = "baoru0908/timestamp-recorder"  # 账号已由 BaoruLee 改名，须用新名字，旧名仅靠重定向
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Release red line: the APK attached to a GitHub Release MUST be signed with
