@@ -24,6 +24,8 @@ class StatsActivity : BaseActivity() {
         binding = ActivityStatsBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.stats_title, showBack = true, scrollContent = binding.scrollContent)
+        // 液态玻璃顶栏（与主页同源）：内容滚动时从玻璃底下穿过实时折射
+        installLiquidTopGlass(binding.topGlass, binding.appBar, binding.scrollContent)
         repo = EventRepository(this)
 
         val focusId = intent.getLongExtra(EXTRA_FOCUS_EVENT_ID, -1L)

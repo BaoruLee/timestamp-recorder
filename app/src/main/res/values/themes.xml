@@ -21,18 +21,14 @@
         <item name="android:windowBackground">@drawable/bg_main_gradient</item>
     </style>
 
-    <!-- 胶囊岛独立窗口的专用主题：**floating**（关键！非 floating 会铺满全屏 → 整屏被模糊
-         且挡掉全部触摸）+ 无 dim、无窗口动画。窗口背景由代码设为半透明胶囊玻璃。 -->
-    <style name="Theme.Timestamp.GlassBar" parent="Theme.Material3.DayNight.NoActionBar">
+    <!-- 「⋮」玻璃菜单浮窗专用：floating + 透明背景（菜单自己的 bg_overflow_menu 提供观感），
+         无 dim、无窗口动画。浮窗会夺状态栏 appearance —— 菜单为临时浮层，可接受。 -->
+    <style name="Theme.Timestamp.Dialog" parent="Theme.Material3.DayNight.NoActionBar">
         <item name="android:windowIsFloating">true</item>
         <item name="android:windowIsTranslucent">true</item>
-        <item name="android:windowBackground">@drawable/bg_bottom_nav</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
         <item name="android:windowNoTitle">true</item>
         <item name="android:backgroundDimEnabled">false</item>
         <item name="android:windowAnimationStyle">@null</item>
-        <item name="android:windowMinWidthMajor">1%</item>
-        <item name="android:windowMinWidthMinor">1%</item>
-        <!-- 这扇窗会盖住状态栏，所以状态栏图标配色由它说了算：浅色玻璃上必须是深色图标 -->
-        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

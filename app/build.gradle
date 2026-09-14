@@ -14,8 +14,8 @@ android {
         // 版本规范：语义化版本 主版本.次版本.修订号
         //   主版本 = 架构级 / 破坏性变更；次版本 = 新增功能；修订号 = 修 bug 与 UI 微调
         // versionCode 每次发布 +1，只增不减（Android 用它判断新旧，与 versionName 无关）
-        versionCode 28
-        versionName "3.3.1"
+        versionCode 29
+        versionName "4.0.0"
     }
 
     buildTypes {
@@ -46,5 +46,8 @@ dependencies {
     implementation 'androidx.constraintlayout:constraintlayout:2.1.4'
     implementation 'androidx.recyclerview:recyclerview:1.3.2'
     implementation 'androidx.activity:activity-ktx:1.8.2'
-    implementation 'com.github.Dimezis:BlurView:version-2.0.6'
+    // 液态玻璃（MIT, 源码集成 com.qmdeve.liquidglass 包 + res/raw/liquidglass_effect.agsl）：
+    // maven 坐标 com.qmdeve.liquidglass:core:1.0.5 的 AAR 元数据要求 compileSdk>=37，
+    // 我们 compileSdk 34 不满足 → 按 MIT 许可把 core 源码（7 个 Java + AGSL shader）直接集成，
+    // 版权声明保留在各文件头；来源 github.com/QmDeve/AndroidLiquidGlassView
 }

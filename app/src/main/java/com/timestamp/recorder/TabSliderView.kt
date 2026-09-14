@@ -38,16 +38,27 @@ class TabSliderView @JvmOverloads constructor(
     override fun onDraw(canvas: Canvas) {
         val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                 Configuration.UI_MODE_NIGHT_YES
-        val inset = resources.getDimensionPixelSize(R.dimen.space_1).toFloat()  // 胶囊左右各缩 4dp
-        val tabW = (width - 2 * inset) / 2f
-        if (tabW <= 0 || height <= 2 * inset) return
-        val left = inset + fraction * tabW
-        rect.set(left + inset, inset, left + tabW - inset, height - inset)
-        val radius = resources.getDimensionPixelSize(R.dimen.radius_lg).toFloat()
+        val inset = resources.getDimensionPixelSize(R.dimen.space_1).toFloat()  // 胶囊上下左右各缩 4dp
+        // 中缝禁区：加号玻璃圆钮（直径 fab_glass_size）居中占据岛中部，
+        // 滑块胶囊与它之间留 4dp 呼吸缝 —— 静置时滑块不被圆钮遮挡（阴影/边缘完整）。
+        val halfGap = resources.getDimensionPixelSize(R.dimen.fab_glass_size) / 2f +
+                resources.getDimensionPixelSize(R.dimen.space_1)
+        val midL = width / 2f - halfGap   // 左滑块右缘
+        val midR = width / 2f + halfGap   // 右滑块左缘
+        val leftEdge = inset
+        val rightEdge = width - inset
+        if (midL <= leftEdge || midR >= rightEdge || height <= 2 * inset) return
+        // fraction 0→1：滑块从左 Tab 位置连续滑到右 Tab 位置（宽度恒定、中心贴 Tab 中心）；
+        // 滑动中途滑块会从圆钮底下穿过（按钮在最上层，与桌面 tab 风格一致）
+        val l = leftEdge + fraction * (midR - leftEdge)
+        val r = midL + fraction * (rightEdge - midL)
+        rect.set(l, inset, r, height - inset)
 
         fillPaint.style = Paint.Style.FILL
         // 白天在浅玻璃上「白上加白」看不出边界，深色用白微光；描边把轮廓交代清楚
         fillPaint.color = if (night) 0x2EFFFFFF.toInt() else 0x1F000000
+        // 圆角 = 滑块高的一半（完整胶囊）——与外层岛（28dp 圆角完整胶囊）同一设计语言
+        val radius = rect.height() / 2f
         canvas.drawRoundRect(rect, radius, radius, fillPaint)
 
         strokePaint.style = Paint.Style.STROKE

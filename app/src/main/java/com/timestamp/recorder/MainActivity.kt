@@ -57,8 +57,8 @@ class MainActivity : BaseActivity() {
         private const val TYPE_RECORD = 1
         private const val TYPE_CAP = 2
         /** 底栏形态：布局内的静态胶囊 / 独立窗口 + 系统级背后模糊 */
-        private const val MODE_STATIC = 0
-        private const val MODE_WINDOW_BLUR = 1
+
+
         /** 外部（如详情页菜单）指定直接打开时间线 Tab */
         const val EXTRA_OPEN_TIMELINE = "extra_open_timeline"
 
@@ -106,6 +106,13 @@ class MainActivity : BaseActivity() {
         pageEvents = ViewPageEventsBinding.inflate(layoutInflater)
         pageTimeline = ViewPageTimelineBinding.inflate(layoutInflater)
         binding.viewPager.adapter = PageAdapter()
+        // ⚠️ 必须显式设 1：默认值(OFFSCREEN_PAGE_LIMIT_DEFAULT=-1)下相邻页要等开始滑动
+        //    才绑定渲染 —— 滑动第一帧相邻页是空白的，元素「不实时出现」的元凶（资料查证）。
+        //    显式 1 = 相邻页从一开始就常驻渲染，滑动立刻露出真实内容。
+        binding.viewPager.offscreenPageLimit = 1
+        // 桌面式纯平移：两页并排、间距是多少就是多少，1:1 跟手滑动。
+        // ⚠️ 不加任何视差/alpha/缩放 transformer —— 相邻页元素「实时出现」由
+        //    offscreenPageLimit=1（相邻页常驻渲染）保证，任何附加变换都是画蛇添足（踩过两次）。
         binding.viewPager.registerOnPageChangeCallback(pageCallback)
 
         pageEvents.recyclerEvents.layoutManager = LinearLayoutManager(this)
@@ -117,15 +124,17 @@ class MainActivity : BaseActivity() {
 
         binding.fabAdd.setOnClickListener { showEditDialog(null) }
         // 记下布局里原本的留白：顶部玻璃栏开启 / 关闭时要来回切换
-        origListTopPadding = pageEvents.recyclerEvents.paddingTop
-        origEmptyTopMargin =
+
+
             (pageEvents.tvEmpty.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         applyFabPosition()
         setupBottomBar()
         setupInLayoutGlass()
+        // 顶栏装配：⋮ 监听 + 顶部让位（restoreTopPadding）。⚠️ 此函数曾被清理脚本弄丢调用，
+        // 症状：右上角 ⋮ 无响应 + 事件首卡被玻璃压住 —— 修复于 2026-09-15。
+        syncTopBar()
         styleTab()
-        // 状态栏配色由 Activity 主窗口控制；独立玻璃窗口只在深色模式启用（useWindowGlass），
-        // 浅色模式不建任何浮窗 → 黑化永不被夺。
+        // 状态栏配色由 Activity 主窗口控制（布局内液态玻璃，不建任何浮窗 → 黑化永不被夺）。
         updateStatusBarAppearance()
         // 若从详情页菜单直达时间线 Tab，需在渲染后生效
         if (intent.getBooleanExtra(EXTRA_OPEN_TIMELINE, false)) {
@@ -154,11 +163,9 @@ class MainActivity : BaseActivity() {
     private val pageCallback = object : ViewPager2.OnPageChangeCallback() {
         override fun onPageScrolled(position: Int, positionOffset: Float, offsetPx: Int) {
             moveSlider(position + positionOffset)
-            // 「＋」贴在「事件」页上：随页面一起平移（滑向时间线时被带出屏幕左侧），
-            // 跟手、可急停、可反向 —— 和页面内容是同一个运动方程，不再单独做渐隐。
-            val fraction = position + positionOffset
-            binding.fabAdd.translationX = -fraction * binding.viewPager.width
-            binding.fabAdd.isClickable = fraction < 0.5f
+            // 桌面式平移：两页内容 1:1 跟手，划到一半时左右各露一半、组件完整实时可见。
+            // ⚠️ 刻意不做任何 alpha/视差叠加 —— 那会把进入页「往回推」+ 半透明，
+            //    破坏主人要的「和桌面两页平移一样」的自然过渡（实测踩过）。
         }
         override fun onPageSelected(position: Int) {
             if (currentTab != position) {
@@ -182,43 +189,63 @@ class MainActivity : BaseActivity() {
      * - bottomBar 高度 = 64dp + 导航栏 inset，一直铺到屏幕最底，系统手势条浮在玻璃之上；
      * - Tab 内容层按导航栏高度加底部 padding，文字绝不被手势条遮挡。
      */
-    /** 布局内玻璃（浅色模式 / 系统不支持高级材质时的形态）：
-     *  topBlur / bottomBar 用 BlurView 截屏式实时模糊 —— 不建任何浮窗，黑化不受影响。
-     *  ⚠️ 参数调优：截屏式高斯的扩散感弱于系统合成器，半径取 glass_blur_radius 的 2 倍补偿；
-     *  不再叠加 setOverlayColor（bg_top_bar / bg_bottom_nav 自带半透明底色，双 overlay 会发灰）；
-     *  bottomBar 补 clipToOutline —— 模糊层按圆角裁切，修掉 tab 栏方形模糊框。 */
+    /** 布局内玻璃（试验版统一形态）：顶部额头与底部岛都是 LiquidGlassView 液态玻璃
+     *  （MIT, API33+）：每帧把 mainHost 内容录进 RenderNode，AGSL 折射 + 色散 + GPU 高斯
+     *  —— 同窗口捕获不建浮窗，黑化不受影响；API<33 时透明（4.0.0 统一降级）。 */
     private fun setupInLayoutGlass() {
-        val radiusPx = resources.getDimensionPixelSize(R.dimen.glass_blur_radius) * 2
-        binding.topBlur.setBackgroundResource(R.drawable.bg_top_bar)
-        val blurAlgorithm = if (Build.VERSION.SDK_INT >= 31) {
-            eightbitlab.com.blurview.RenderEffectBlur()
-        } else {
-            eightbitlab.com.blurview.RenderScriptBlur(this)
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES
+        val d = resources.displayMetrics.density
+
+        if (Build.VERSION.SDK_INT >= 33) {
+            try {
+                // 底部胶囊岛：完整胶囊圆角 28dp
+                binding.bottomBar.bind(binding.mainHost)
+                binding.bottomBar.setCornerRadius(28f * d)
+                binding.bottomBar.setBlurRadius((14f * d).coerceAtMost(50f))
+                binding.bottomBar.setRefractionHeight(20f * d)
+                // 顶部额头：贴屏幕顶的玻璃条，不做圆角（液态玻璃自带边缘光效），
+                // 折射高度稍收（列表从底下穿过，折射带太宽会顶到标题）
+                binding.topGlass.bind(binding.mainHost)
+                binding.topGlass.setCornerRadius(0f)
+                binding.topGlass.setBlurRadius((14f * d).coerceAtMost(50f))
+                binding.topGlass.setRefractionHeight(16f * d)
+                // tab 栏中间的加号玻璃圆钮：与岛同材质，风格统一
+                binding.fabGlass.bind(binding.mainHost)
+                binding.fabGlass.setCornerRadius(26f * d)
+                binding.fabGlass.setBlurRadius((12f * d).coerceAtMost(50f))
+                binding.fabGlass.setRefractionHeight(12f * d)
+                // 色调：浅色模式薄白雾、深色模式深蓝黑雾
+                val (tr, tg, tb, ta) = if (night) {
+                    listOf(0.12f, 0.12f, 0.18f, 0.38f)
+                } else {
+                    listOf(1f, 1f, 1f, 0.12f)
+                }
+                for (v in listOf(binding.bottomBar, binding.topGlass)) {
+                    v.setTintColorRed(tr)
+                    v.setTintColorGreen(tg)
+                    v.setTintColorBlue(tb)
+                    v.setTintAlpha(ta)
+                }
+            } catch (_: Throwable) { }
         }
-        try {
-            binding.topBlur.setupWith(binding.root, blurAlgorithm)
-                .setBlurRadius(radiusPx.toFloat())
-                .setBlurAutoUpdate(true)
-            binding.bottomBar.setupWith(binding.root, blurAlgorithm)
-                .setBlurRadius(radiusPx.toFloat())
-                .setBlurAutoUpdate(true)
-            binding.bottomBar.clipToOutline = true
-            binding.bottomBar.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
-        } catch (_: Throwable) { }
-        // 顶部玻璃底高度匹配 AppBar（含状态栏区域）
+
+        // 顶部玻璃高度匹配 AppBar（含状态栏区域）。
+        // ⚠️ 不给 viewPager 加 padding —— ViewPager2 的 clipToPadding=false 不可靠，
+        // 会让列表在 padding 区被裁掉，玻璃底下永远空白（折射了个寂寞）。
+        // 列表全高从屏幕顶铺到屏底，让位统一走 restoreTopPadding（RecyclerView topPadding）。
         binding.appBar.viewTreeObserver.addOnGlobalLayoutListener(object :
             android.view.ViewTreeObserver.OnGlobalLayoutListener {
             override fun onGlobalLayout() {
                 val h = binding.appBar.height
                 if (h > 0) {
-                    val lp = binding.topBlur.layoutParams
+                    val lp = binding.topGlass.layoutParams
                     if (lp.height != h) {
                         lp.height = h
-                        binding.topBlur.layoutParams = lp
+                        binding.topGlass.layoutParams = lp
                     }
-                    if (binding.viewPager.paddingTop != h) {
-                        binding.viewPager.setPadding(0, h, 0, 0)
-                    }
+                    // AppBar 高度就绪后补一次让位（onCreate 时高度未量出，用的是 dimen 兜底值）
+                    restoreTopPadding()
                 }
             }
         })
@@ -274,46 +301,19 @@ class MainActivity : BaseActivity() {
      *
      * 因为「高级材质」是**系统设置**，用户可能在我们退到后台时改，所以 onResume 会再调一次。
      */
-    /** 真·高级材质（独立 PANEL 窗口 + 系统模糊）只在**深色模式**启用：
-     *  深色模式下状态栏白图标本就是正常态，浮窗夺走 appearance 无副作用；
-     *  浅色模式必须保住黑化 —— AOSP 实验铁证：**任意浮窗无论 type / 屏幕位置 / 是否可聚焦，
-     *  都会夺走状态栏 appearance 且无法点亮**，浅色模式有浮窗 = 白图标压浅玻璃隐形。 */
-    private fun useWindowGlass(): Boolean =
-        SystemBlur.isUsable(this) &&
-        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                Configuration.UI_MODE_NIGHT_YES
-
     private fun syncBarMode() {
-        syncTopBar()
-        if (useWindowGlass()) {
-            // 深色模式真·高级材质：胶囊岛放进独立 PANEL 子窗口，模糊交给系统合成器（老版质感标杆）
-            if (barMode != MODE_WINDOW_BLUR || glassDialog == null) {
-                removeIslandWindow()
-                binding.bottomBar.visibility = View.GONE
-                buildIslandWindow() // 内部绑定窗口内 Tab / 滑块并 styleTab
-                barMode = MODE_WINDOW_BLUR
-            } else {
-                applyIslandWindowLayout()
-            }
-        } else {
-            // 浅色模式 / 系统不支持：布局内的半透明胶囊 + BlurView 截屏模糊（黑化不受影响）
-            if (barMode != MODE_STATIC) {
-                removeIslandWindow()
-                binding.bottomBar.visibility = View.VISIBLE
-                tabEventsRef = layoutTabEvents
-                tabTimelineRef = layoutTabTimeline
-                bindSlider(binding.tabSlider)
-                tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
-                tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
-                barMode = MODE_STATIC
-            }
-        }
+        // 液态玻璃统一形态：布局内 Tab 绑定 + 布局对齐（旧「独立窗口/分形态」分支已随 4.0.0 移除）
+        tabEventsRef = layoutTabEvents
+        tabTimelineRef = layoutTabTimeline
+        bindSlider(binding.tabSlider)
+        tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
+        tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
         applyBarLayout(navInsetPx)
         styleTab()
     }
 
     /** 底栏当前形态（-1 = 尚未定过，首次必然进入初始化分支） */
-    private var barMode = -1
+
 
     // ---------------- 顶部玻璃栏（独立窗口 + 系统级模糊） ----------------
 
@@ -330,218 +330,38 @@ class MainActivity : BaseActivity() {
      * 与原来的 options menu 共用一套逻辑。
      */
     private fun syncTopBar() {
-        if (useWindowGlass()) {
-            // 深色模式真·高级材质：收起布局内 AppBar / 玻璃底，顶部额头交给独立 PANEL 子窗口，
-            // 列表从玻璃底下穿过（滚动穿行 = 老版标杆观感），模糊由系统合成器实时完成
-            if (topBarMode != MODE_WINDOW_BLUR || topBarDialog == null) {
-                dismissTopBar()
-                binding.appBar.visibility = View.GONE
-                binding.topBlur.visibility = View.GONE
-                buildTopBarWindow() // PANEL + Activity token（深色模式白图标本就是正常态）
-                topBarMode = MODE_WINDOW_BLUR
-            } else {
-                applyTopBarInsets()
-            }
-        } else {
-            // 浅色模式 / 系统不支持：布局内玻璃（BlurView 截屏模糊，黑化不受任何影响）
-            if (topBarMode != MODE_STATIC) {
-                dismissTopBar()
-                binding.appBar.visibility = View.VISIBLE
-                binding.topBlur.visibility = View.VISIBLE
-                binding.btnMore.setOnClickListener { showOverflowMenu(it) }
-                topBarMode = MODE_STATIC
-            }
-            applyTopBarInsets() // MODE_STATIC 分支内部会 restoreTopPadding
-        }
+        // 液态玻璃统一形态：布局内 AppBar + topGlass（玻璃配置见 setupInLayoutGlass）
+        binding.appBar.visibility = View.VISIBLE
+        binding.topGlass.visibility = View.VISIBLE
+        binding.btnMore.setOnClickListener { showOverflowMenu(it) }
+        restoreTopPadding()
     }
 
-    private fun buildTopBarWindow() {
-        val dlg = android.app.Dialog(this, R.style.Theme_Timestamp_GlassBar)
-        val content = layoutInflater.inflate(R.layout.view_top_bar, null)
-        dlg.setContentView(content)
-        dlg.setCancelable(false)
-        dlg.setCanceledOnTouchOutside(false)
-        topBarRoot = content
-        content.findViewById<View>(R.id.btnMore)?.setOnClickListener { showOverflowMenu(it) }
 
-        dlg.window?.let { w ->
-            w.setDimAmount(0f)
-            w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            w.addFlags(
-                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-                    or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-                    or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-            )
-            w.setGravity(Gravity.TOP)
-            val lp = w.attributes
-            lp.width = android.view.WindowManager.LayoutParams.MATCH_PARENT
-            lp.height = android.view.WindowManager.LayoutParams.WRAP_CONTENT
-            // ★ 关键：type=PANEL 让 appearance 记入 StatusBar 决策 → 黑化
-            lp.type = android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL
-            if (android.os.Build.VERSION.SDK_INT >= 30) {
-                lp.fitInsetsTypes = 0
-                lp.fitInsetsSides = 0
-            }
-            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                    Configuration.UI_MODE_NIGHT_YES
-            if (!night) {
-                @Suppress("DEPRECATION")
-                lp.systemUiVisibility =
-                    lp.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-            }
-            w.attributes = lp
-            w.statusBarColor = Color.TRANSPARENT
-            SystemBlur.attach(
-                dlg,
-                resources.getDimensionPixelSize(R.dimen.glass_blur_radius),
-                resources.getDrawable(R.drawable.bg_top_bar, theme)
-            )
-        }
-        // ★ PANEL 必须带 Activity token，等就绪再 show（防 BadTokenException）
-        val token = binding.root.windowToken
-        if (token != null) {
-            dlg.window?.attributes?.token = token
-            dlg.show()
-            topBarDialog = dlg
-            afterTopBarShown(dlg)
-        } else {
-            binding.root.post {
-                if (!isDestroyed) {
-                    dlg.window?.attributes?.token = binding.root.windowToken
-                    dlg.show()
-                    topBarDialog = dlg
-                    afterTopBarShown(dlg)
-                }
-            }
-        }
-    }
 
-    private fun afterTopBarShown(dlg: android.app.Dialog) {
-        dlg.window?.let { w ->
-            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                    Configuration.UI_MODE_NIGHT_YES
-            w.decorView.post {
-                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
-                    ?.isAppearanceLightStatusBars = !night
-                if (!night) {
-                    @Suppress("DEPRECATION")
-                    w.decorView.systemUiVisibility =
-                        w.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                }
-            }
-        }
-        dlg.window?.decorView?.post { applyTopBarInsets() }
-        val obs = topBarRoot?.viewTreeObserver
-        if (obs != null && obs.isAlive) {
-            val l = object : ViewTreeObserver.OnGlobalLayoutListener {
-                override fun onGlobalLayout() = applyTopBarInsets()
-            }
-            topBarLayoutListener = l
-            obs.addOnGlobalLayoutListener(l)
-        }
-    }
 
-    private fun attachPanel(
-        content: View,
-        lp: android.view.WindowManager.LayoutParams,
-        ready: () -> Unit
-    ) {
-        val token = binding.root.windowToken
-        if (token != null) {
-            lp.token = token
-            val wm = getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
-            wm.addView(content, lp)
-            ready()
-        } else if (!isDestroyed) {
-            binding.root.post { attachPanel(content, lp, ready) }
-        }
-    }
+    /** 时间线起笔（Cap）空行的高度 = 列表让位（AppBar 高 + 呼吸感）：
+     *  彩线从 Cap 顶贯穿到屏幕最顶端（衬在玻璃底下），Cap 底部正好与事件第一卡对齐。 */
+    private var timelineLeadPx = 0
 
-    /** 收掉顶部玻璃栏窗口（连同布局监听，避免泄漏） */
-    private fun dismissTopBar() {
-        topBarLayoutListener?.let { l ->
-            try {
-                val obs = topBarRoot?.viewTreeObserver
-                if (obs != null && obs.isAlive) obs.removeOnGlobalLayoutListener(l)
-            } catch (_: Throwable) { }
-        }
-        topBarLayoutListener = null
-        try { topBarDialog?.dismiss() } catch (_: Throwable) { }
-        topBarDialog = null
-        topBarRoot = null
-    }
-
-    /**
-     * 玻璃顶栏盖住了状态栏 + 标题栏，所以：
-     * - 窗口内加「状态栏高度」的上内边距（标题落到状态栏之下）；
-     * - 事件列表按**玻璃栏下沿在屏幕上的位置**留白（首条不被压在玻璃下）；
-     * - 时间线列表**不留白**：让「起笔」那一段从屏幕最顶端开始，彩色竖线才能从玻璃底下顶上来。
-     */
-    private fun applyTopBarInsets() {
-        if (topBarMode != MODE_WINDOW_BLUR || topBarRoot == null) {
-            restoreTopPadding()
-            return
-        }
-        val root = topBarRoot ?: return
-        val statusTop = androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
-            ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
-
-        // 窗口到底盖没盖住状态栏，不能靠猜：直接看它的真实屏幕位置。
-        // - 盖住了（窗口顶端 == 0）→ 标题要往下让出状态栏，内边距 = 状态栏高度；
-        // - 没盖住（窗口顶端 == 状态栏高度）→ 已经让出来了，内边距 = 0。
-        // 这样无论 ROM 怎么摆这个窗口，栏高和列表留白都是对的（不会白多一条状态栏的高度）。
-        val loc = IntArray(2)
-        topBarRoot?.getLocationOnScreen(loc)
-        val winTop = loc[1].coerceIn(0, statusTop)
-        val pad = statusTop - winTop
-        if (root.paddingTop != pad) {
-            root.setPadding(root.paddingLeft, pad, root.paddingRight, root.paddingBottom)
-        }
-
-        val winH = measureTopBarHeight()
-        // ⚠️ 列表要的留白 = 玻璃栏**下沿**在屏幕上的位置，也就是「窗口顶端 + 窗口高」。
-        // 之前只算了「内容高」（winH - pad），等于漏掉了被罩住的那条状态栏 ——
-        // 留白少了一整个状态栏高度，于是第一个事件直接被额头压住。
-        // 再兜一层底线（状态栏 + 一栏工具栏）：万一某帧量到的窗口位置还不准，也不会压到内容。
-        val minCover = statusTop + resources.getDimensionPixelSize(R.dimen.top_bar_height)
-        val covered = (winTop + winH).coerceAtLeast(minCover)
-        // 留白要相对「内容区原点」算，而不是假设列表恰好从 y=0 开始 —— 少一层假设，少一处坑。
-        // 用 binding.root 而不是列表本身：列表在另一个 Tab 下是 GONE 的，GONE 的 view 量不到位置。
-        val hostLoc = IntArray(2)
-        binding.root.getLocationOnScreen(hostLoc)
-        val gap = resources.getDimensionPixelSize(R.dimen.space_2)
-        val base = (covered - hostLoc[1]).coerceAtLeast(0)
-        if (winH > 0 && covered > 0) {
-            pageEvents.recyclerEvents.applyTopPadding(base + gap)
-            pageTimeline.recyclerTimeline.applyTopPadding(0)
-            applyEmptyTopPadding(base + gap * 3)
-        }
-    }
-
-    /** 退出玻璃顶栏（如系统关掉高级材质）时，把列表留白还回布局里原本的值。
-     *  ⚠️ 时间线的顶部留白**永远为 0**：起笔（Cap）负责把彩色线顶到「当前顶端」，
-     *  留白会在顶端留出一截没颜色的空档（两种顶栏形态下都一样）。 */
+    /** 布局内（液态玻璃试验形态）的列表让位：
+     *  列表**全高**从屏幕顶铺到屏底（内容滚动时自然穿过额头玻璃底下，实时被折射）。
+     *  事件首卡让位 = AppBar 高 + 呼吸感；时间线让位**恒为 0**（起笔 Cap 顶到屏幕顶，
+     *  彩线贯穿玻璃底下），起笔节点对齐交给 Cap 空行高度（timelineLeadPx）。 */
     private fun restoreTopPadding() {
-        pageEvents.recyclerEvents.applyTopPadding(origListTopPadding)
+        val h = binding.appBar.height.takeIf { it > 0 }
+            ?: resources.getDimensionPixelSize(R.dimen.top_bar_height)
+        val gap = resources.getDimensionPixelSize(R.dimen.space_2)
+        if (binding.viewPager.paddingTop != 0) binding.viewPager.setPadding(0, 0, 0, 0)
+        pageEvents.recyclerEvents.applyTopPadding(h + gap)
         pageTimeline.recyclerTimeline.applyTopPadding(0)
-        applyEmptyTopPadding(origEmptyTopMargin)
-    }
-
-    /**
-     * 顶栏窗口的实际高度。
-     * ⚠️ 不能用 `decorView.height` 一把梭：窗口刚 show() 时它还是 0，
-     * 那样列表留白就永远补不上、首条会被压在玻璃底下。测不到就自己量一次。
-     */
-    private fun measureTopBarHeight(): Int {
-        val v = topBarRoot ?: return 0
-        if (v.height > 0) return v.height
-        val w = binding.root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
-        v.measure(
-            View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
-            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
-        )
-        return v.measuredHeight
+        applyEmptyTopPadding(h + gap * 3)
+        val lead = h + gap
+        if (timelineLeadPx != lead) {
+            timelineLeadPx = lead
+            // Cap 高度依赖该值：让位变化后重绑一次（时间线列表条目少，开销可忽略）
+            timelineAdapter.notifyDataSetChanged()
+        }
     }
 
     private fun applyEmptyTopPadding(px: Int) {
@@ -573,7 +393,7 @@ class MainActivity : BaseActivity() {
      */
     private fun showOverflowMenu(anchor: View) {
         dismissOverflowMenu()
-        val dlg = android.app.Dialog(this, R.style.Theme_Timestamp_GlassBar)
+        val dlg = android.app.Dialog(this, R.style.Theme_Timestamp_Dialog)
         val b = ViewOverflowMenuBinding.inflate(layoutInflater)
         dlg.setContentView(b.root)
         dlg.setCancelable(true)
@@ -614,12 +434,7 @@ class MainActivity : BaseActivity() {
             )
             // 模糊区域由「窗口背景」推导，所以这块可见的玻璃必须给到窗口上（内容本身不带背景）
             val bg = resources.getDrawable(R.drawable.bg_overflow_menu, theme)
-            if (SystemBlur.isUsable(this)) {
-                SystemBlur.attach(
-                    dlg, resources.getDimensionPixelSize(R.dimen.glass_blur_radius), bg)
-            } else {
-                w.setBackgroundDrawable(bg)
-            }
+            w.setBackgroundDrawable(bg)
             w.setGravity(Gravity.TOP or Gravity.START)
             val lp = w.attributes
             // ⚠️ 宽度必须显式给像素，不能靠布局里的 layout_width：
@@ -699,120 +514,21 @@ class MainActivity : BaseActivity() {
         else -> false
     }
 
-    private var topBarDialog: android.app.Dialog? = null
+
     private var topBarRoot: View? = null
     private var topBarLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     /** 顶部玻璃栏是否生效（-1 = 尚未定过） */
-    private var topBarMode = -1
+
 
     // 布局里原本的留白，退出玻璃顶栏（如系统关掉高级材质）时要还原
-    private var origListTopPadding = 0
-    private var origEmptyTopMargin = 0
 
-    /**
-     * 胶囊岛独立窗口 + 系统级「窗口背景模糊」（HyperOS 高级材质）。
-     * 关键差异：窗口背景是**半透明胶囊玻璃**（`bg_bottom_nav` 原样使用，不做运行时改色）
-     * 而不是全透明 —— 范围受限的模糊区域靠它推导。模糊半径用固定档
-     * `glass_blur_radius`（材质固定一档，不跟随系统「材质风格」）。
-     */
-    private fun buildIslandWindow() {
-        val dlg = android.app.Dialog(this, R.style.Theme_Timestamp_GlassBar)
-        val content = layoutInflater.inflate(R.layout.view_bottom_nav, null)
-        dlg.setContentView(content)
-        dlg.setCancelable(false)
-        dlg.setCanceledOnTouchOutside(false)
 
-        tabEventsRef = TabViews(
-            content.findViewById(R.id.tabEvents),
-            content.findViewById(R.id.iconEvents),
-            content.findViewById(R.id.textEvents)
-        )
-        tabTimelineRef = TabViews(
-            content.findViewById(R.id.tabTimeline),
-            content.findViewById(R.id.iconTimeline),
-            content.findViewById(R.id.textTimeline)
-        )
-        bindSlider(content.findViewById(R.id.tabSlider))
-        tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
-        tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
 
-        dlg.window?.let { w ->
-            w.setDimAmount(0f)
-            w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            w.addFlags(
-                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
-                    or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
-            )
-            w.setGravity(Gravity.BOTTOM)
-            val lp = w.attributes
-            lp.type = android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL
-            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                    Configuration.UI_MODE_NIGHT_YES
-            if (!night) {
-                @Suppress("DEPRECATION")
-                lp.systemUiVisibility =
-                    lp.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-            }
-            w.attributes = lp
-            SystemBlur.attach(
-                dlg,
-                resources.getDimensionPixelSize(R.dimen.glass_blur_radius),
-                resources.getDrawable(R.drawable.bg_bottom_nav, theme)
-            )
-        }
-        // PANEL 必须带 Activity token
-        val token = binding.root.windowToken
-        if (token != null) {
-            dlg.window?.attributes?.token = token
-            dlg.show()
-            glassDialog = dlg
-            islandW = 0
-            islandH = 0
-            applyIslandWindowLayout()
-            styleTab()
-        } else {
-            binding.root.post {
-                if (!isDestroyed) {
-                    dlg.window?.attributes?.token = binding.root.windowToken
-                    dlg.show()
-                    glassDialog = dlg
-                    islandW = 0
-                    islandH = 0
-                    applyIslandWindowLayout()
-                    styleTab()
-                }
-            }
-        }
-    }
 
-    /** 让窗口与「布局内那颗胶囊」的位置、尺寸完全一致 */
-    private fun applyIslandWindowLayout() {
-        val w = glassDialog?.window ?: return
-        val wantW = resources.displayMetrics.widthPixels -
-                2 * resources.getDimensionPixelSize(R.dimen.space_4)
-        val wantH = resources.getDimensionPixelSize(R.dimen.tab_bar_height)
-        if (islandW == wantW && islandH == wantH) return
-        val lp = w.attributes
-        lp.width = wantW
-        lp.height = wantH
-        lp.gravity = Gravity.BOTTOM
-        lp.y = resources.getDimensionPixelSize(R.dimen.island_bottom_gap) + navInsetPx
-        w.attributes = lp
-        islandW = wantW
-        islandH = wantH
-    }
 
-    private fun removeIslandWindow() {
-        try { glassDialog?.dismiss() } catch (_: Throwable) { }
-        glassDialog = null
-        islandW = 0
-        islandH = 0
-    }
 
-    private var glassDialog: android.app.Dialog? = null
-    private var islandW = 0
-    private var islandH = 0
+
 
     /**
      * 胶囊岛：高度固定，只调整「离底部多远」= 导航栏高度 + 12dp 呼吸感。
@@ -821,17 +537,12 @@ class MainActivity : BaseActivity() {
      */
     private fun applyBarLayout(nav: Int) {
         navInsetPx = nav
-        barHeightPx = resources.getDimensionPixelSize(R.dimen.tab_bar_height)
-        if (glassDialog != null) {
-            applyIslandWindowLayout()
-        } else {
-            // 胶囊岛：高度固定，只调整「离底部多远」= 导航栏高度 + 12dp 呼吸感
-            val lp = binding.bottomBar.layoutParams as android.view.ViewGroup.MarginLayoutParams
-            val want = nav + resources.getDimensionPixelSize(R.dimen.island_bottom_gap)
-            if (lp.bottomMargin != want) {
-                lp.bottomMargin = want
-                binding.bottomBar.layoutParams = lp
-            }
+        // 胶囊岛：高度固定，只调整「离底部多远」= 导航栏高度 + 12dp 呼吸感
+        val lp = binding.bottomBar.layoutParams as android.view.ViewGroup.MarginLayoutParams
+        val want = nav + resources.getDimensionPixelSize(R.dimen.island_bottom_gap)
+        if (lp.bottomMargin != want) {
+            lp.bottomMargin = want
+            binding.bottomBar.layoutParams = lp
         }
         applyFabPosition()
     }
@@ -862,39 +573,11 @@ class MainActivity : BaseActivity() {
     }
 
     /** 当前底部栏实测高度（= 内容高 + 导航栏 inset），FAB 据此上移 */
-    private var barHeightPx = 0
+
 
     override fun onResume() {
         super.onResume()
         refresh()
-        // ⚠️ ColorOS/realme 16 黑化修复（2026-09-14 真机实测）：
-        //    顶部玻璃栏独立窗口（Dialog）加入后，其 appearance 变更不会 dispatch 给
-        //    SystemUI 的 StatusBar —— 状态栏图标永远按旧值渲染（浅色模式白图标）。
-        //    系统决策（InsetsPolicy）其实正确（mLastAppearance=LIGHT_STATUS_BARS），
-        //    SystemUI 重启即恢复，但运行中只有**聚焦窗口（主窗口）**的 appearance 变更
-        //    会触发 StatusBar 重渲染。这里在主窗口就绪后制造一次「先清空再点亮」的
-        //    变更事件，强制 StatusBar 重新采样渲染。
-        binding.root.postDelayed({
-            if (android.os.Build.VERSION.SDK_INT >= 30) {
-                val night = resources.configuration.uiMode and
-                        Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
-                val light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
-                try {
-                    // ⚠️ ColorOS/realme 16：同一帧内连续两次 setSystemBarsAppearance，
-                    //    第二次会被吞掉（实测只采纳第一次）。所以第一步先设「反值」
-                    //    制造变更事件，第二步**延迟隔帧**再设目标值。
-                    window.insetsController?.setSystemBarsAppearance(
-                        if (night) light else 0,
-                        android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS)
-                    binding.root.postDelayed({
-                        window.insetsController?.setSystemBarsAppearance(
-                            if (night) 0 else light,
-                            android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS)
-                    }, 200L)
-                } catch (_: Throwable) {
-                }
-            }
-        }, 1000L)
         // 用户可能在系统里改了「高级材质」开关或「材质风格」，回到前台时重新对齐
         syncBarMode()
         applyFabPosition()
@@ -910,8 +593,6 @@ class MainActivity : BaseActivity() {
     override fun onDestroy() {
         // 独立窗口要收掉，避免窗口泄漏
         dismissOverflowMenu()
-        removeIslandWindow()
-        dismissTopBar()
         super.onDestroy()
     }
 
@@ -944,35 +625,24 @@ class MainActivity : BaseActivity() {
                 binding.root.setPadding(0, 0, 0, 0)
                 applyBarLayout(nav)
                 // 状态栏高度此时才是准的：顶部玻璃栏的上内边距 / 列表留白要重算
-                applyTopBarInsets()
+                restoreTopPadding()
             }
         }
     }
 
     /** 快捷按钮位置：左 / 中 / 右（设置页可切换）；底边距跟随底部栏实测高度，始终悬在栏上方 */
     private fun applyFabPosition() {
-        val pos = getSharedPreferences(SettingsActivity.PREFS, MODE_PRIVATE)
-            .getString(SettingsActivity.KEY_FAB_POS, SettingsActivity.FAB_END) ?: SettingsActivity.FAB_END
-        val gravity = when (pos) {
-            SettingsActivity.FAB_START -> Gravity.START or Gravity.BOTTOM
-            SettingsActivity.FAB_CENTER -> Gravity.CENTER_HORIZONTAL or Gravity.BOTTOM
-            else -> Gravity.END or Gravity.BOTTOM
+        // 加号玻璃圆钮对齐「岛的正中心」：fabGlass 在 root 层（标准 FrameLayout，
+        // gravity 才生效——LiquidGlassView 自定义 onLayout 会忽略子 View gravity），
+        // 底边距 = 岛底边距 + (岛高 - 圆钮高) / 2，正好与胶囊岛同心。
+        val lp = binding.fabGlass.layoutParams as android.widget.FrameLayout.LayoutParams
+        val want = navInsetPx + resources.getDimensionPixelSize(R.dimen.island_bottom_gap) +
+                (resources.getDimensionPixelSize(R.dimen.tab_bar_height) -
+                        resources.getDimensionPixelSize(R.dimen.fab_glass_size)) / 2
+        if (lp.bottomMargin != want) {
+            lp.bottomMargin = want
+            binding.fabGlass.layoutParams = lp
         }
-        val m = resources.getDimensionPixelSize(R.dimen.fab_margin)
-        // FAB 永远悬在胶囊岛上方：岛离底距离 + 岛高 + 一点呼吸感
-        val bottom = if (barHeightPx > 0) {
-            navInsetPx + resources.getDimensionPixelSize(R.dimen.island_bottom_gap) +
-                    barHeightPx + resources.getDimensionPixelSize(R.dimen.space_3)
-        } else {
-            resources.getDimensionPixelSize(R.dimen.fab_bottom_margin)
-        }
-        val lp = binding.fabAdd.layoutParams as CoordinatorLayout.LayoutParams
-        // 值没变就不写回：避免在 inset 回调里反复 requestLayout
-        if (lp.gravity == gravity && lp.leftMargin == m && lp.topMargin == m &&
-            lp.rightMargin == m && lp.bottomMargin == bottom) return
-        lp.gravity = gravity
-        lp.setMargins(m, m, m, bottom)
-        binding.fabAdd.layoutParams = lp
     }
 
     private fun currentSortMode(): String =
@@ -1044,15 +714,13 @@ class MainActivity : BaseActivity() {
     /** 统一管理两个列表与各自空状态的可见性 */
     private fun updateVisibility() {
         val events = currentTab == TAB_EVENTS
-        pageEvents.recyclerEvents.visibility = if (events) View.VISIBLE else View.GONE
-        pageTimeline.recyclerTimeline.visibility = if (events) View.GONE else View.VISIBLE
+        // ⚠️ 两页 RecyclerView **恒为 VISIBLE** —— ViewPager2 平移时相邻页必须实时绘制，
+        //    GONE 会让滑动中的相邻页露出空白页（「过渡留白」的元凶，桌面式翻页被它毁了）。
+        //    空态提示只在落页时切换显隐。
         pageEvents.tvEmpty.visibility = if (events && adapter.itemCount == 0) View.VISIBLE else View.GONE
         pageTimeline.tvEmptyTimeline.visibility =
             if (!events && timelineAdapter.itemCount == 0) View.VISIBLE else View.GONE
-        // 「＋」的显隐改由 onPageScrolled 的滑动进度控制（渐隐 / 渐现 + 下沉），
-        // 这里不再 GONE/VISIBLE 硬切 —— 否则会打断滑动中的过渡动画
-        // 时间线底轨：只在「时间线」Tab 显示（贯穿屏幕上下那条淡线）
-        // 底轨在时间线页内部，跟着页面走，无需代码切换
+        // 时间线底轨在时间线页内部，跟着页面走，无需代码切换
     }
 
     // ---------- 菜单（设置 + 统计 + 教程；时间线走底部 Tab） ----------
@@ -1304,13 +972,13 @@ class MainActivity : BaseActivity() {
                 b.root.layoutParams = b.root.layoutParams.apply {
                     // 起笔高度跟顶栏形态走：独立玻璃窗口罩着屏幕顶端时要够高才能从玻璃下穿出来；
                     // 静态 AppBar 那种情况 AppBar 自己已占着顶端，起笔只需一小段把线接上。
-                    height = resources.getDimensionPixelSize(
-                        when {
-                            !item.head -> R.dimen.timeline_tail_height
-                            topBarMode == MODE_WINDOW_BLUR -> R.dimen.timeline_head_height
-                            else -> R.dimen.timeline_head_height_static
-                        }
-                    )
+                    height = when {
+                        !item.head -> resources.getDimensionPixelSize(R.dimen.timeline_tail_height)
+                        // 液态玻璃形态：起笔空行高度 = 列表让位（AppBar 高 + 呼吸感）——
+                        // 彩线从屏幕最顶贯穿下来（衬在玻璃底下），Cap 底部正好与事件第一卡对齐
+                        timelineLeadPx > 0 -> timelineLeadPx
+                        else -> resources.getDimensionPixelSize(R.dimen.timeline_head_height_static)
+                    }
                 }
                 b.vLine.setLine(
                     prevColor(position),

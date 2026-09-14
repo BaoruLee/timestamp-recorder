@@ -58,6 +58,11 @@ class EventDetailActivity : BaseActivity() {
             binding.toolbar, binding.appBar, binding.root, R.string.app_name,
             showBack = true, scrollContent = binding.recyclerRecords
         )
+        // 液态玻璃顶栏（与主页同源）：内容让位 = AppBar 高 + 16dp 基准
+        installLiquidTopGlass(
+            binding.topGlass, binding.appBar, binding.contentHost,
+            contentBaseTop = resources.getDimensionPixelSize(R.dimen.space_4)
+        )
         // 底部「批量操作栏」是固定在屏底的另一块内容：记录列表已经铺到手势条下面了，
         // 这条操作栏得自己避开小白条（内边距外扩，背景仍然延伸到屏幕底）。
         androidx.core.view.ViewCompat.setOnApplyWindowInsetsListener(binding.selectionBar) { v, insets ->

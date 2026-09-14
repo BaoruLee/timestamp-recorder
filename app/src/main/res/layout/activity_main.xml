@@ -1,6 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 主页：BlurView 重构版。
-     顶部额头和底部岛均用 BlurView 做实时背后模糊，状态栏配色由 Activity 主窗口控制。 -->
+<!-- 主页：液态玻璃试验版。
+     ⚠️ 结构铁律：LiquidGlassView（topGlass/bottomBar）绝不能放进它的采样源
+     （mainHost）里 —— 录制时 mainHost.draw() 会把玻璃自己画进 RenderNode，
+     形成「显示列表包含自己」的无限递归 → RenderThread 栈溢出 SIGSEGV 闪退。
+     采样源 mainHost 只装内容（列表/底轨/渐变/FAB），玻璃与 AppBar 都在 root 层。 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
@@ -24,84 +27,71 @@
             android:visibility="gone" />
 
         <!-- 内容区：从屏幕顶端开始铺（去掉 scrolling behavior），
-             滚动时内容从顶部玻璃栏底下穿过，BlurView 才能模糊到内容。
+             滚动时内容从顶部玻璃栏底下穿过，玻璃才能折射到内容。
              顶部 padding 由代码动态设置（等于 AppBar 高度），初始内容不被挡住。 -->
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/viewPager"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:clipToPadding="false" />
-
-        <!-- 顶部模糊背景层（BlurView）：在 ViewPager2 上面、AppBarLayout 下面，
-             模糊背后的列表内容，AppBarLayout 透明背景透出模糊。 -->
-        <eightbitlab.com.blurview.BlurView
-            android:id="@+id/topBlur"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:clickable="false"
-            android:focusable="false" />
-
-        <com.google.android.material.appbar.AppBarLayout
-            android:id="@+id/appBar"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:background="@android:color/transparent"
-            app:elevation="0dp">
-
-            <com.google.android.material.appbar.MaterialToolbar
-                android:id="@+id/toolbar"
-                android:layout_width="match_parent"
-                android:layout_height="?attr/actionBarSize"
-                app:contentInsetEnd="4dp"
-                app:title="@string/main_title"
-                app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge">
-
-                <ImageButton
-                    android:id="@+id/btnMore"
-                    android:layout_width="44dp"
-                    android:layout_height="44dp"
-                    android:layout_gravity="end|center_vertical"
-                    android:background="?attr/selectableItemBackgroundBorderless"
-                    android:contentDescription="@string/menu_more"
-                    android:scaleType="center"
-                    android:src="@drawable/ic_more_vert" />
-            </com.google.android.material.appbar.MaterialToolbar>
-
-            <TextView
-                android:id="@+id/tvSubtitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:paddingStart="20dp"
-                android:paddingBottom="12dp"
-                android:text="@string/main_subtitle"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textSize="13sp" />
-        </com.google.android.material.appbar.AppBarLayout>
-
-        <!-- 加号按钮 -->
-        <ImageButton
-            android:id="@+id/fabAdd"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
-            android:layout_gravity="bottom|end"
-            android:background="@drawable/fab_liquid"
-            android:contentDescription="@string/fab_add"
-            android:elevation="6dp"
-            android:foreground="?attr/selectableItemBackgroundBorderless"
-            android:outlineProvider="background"
-            android:scaleType="center"
-            android:src="@drawable/ic_add" />
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-    <!-- 底部岛：BlurView 直接作为容器，模糊背后的列表内容 -->
-    <eightbitlab.com.blurview.BlurView
+    <!-- 顶部额头：液态玻璃（在 mainHost 外！见文件头铁律），实时折射+色散+模糊列表内容；
+         AppBar 透明叠在其上，标题/⋮按钮画在玻璃之上。 -->
+    <com.qmdeve.liquidglass.widget.LiquidGlassView
+        android:id="@+id/topGlass"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="false"
+        android:focusable="false" />
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:contentInsetEnd="4dp"
+            app:title="@string/main_title"
+            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge">
+
+            <ImageButton
+                android:id="@+id/btnMore"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_gravity="end|center_vertical"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:contentDescription="@string/menu_more"
+                android:scaleType="center"
+                android:src="@drawable/ic_more_vert" />
+        </com.google.android.material.appbar.MaterialToolbar>
+
+        <TextView
+            android:id="@+id/tvSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:paddingStart="20dp"
+            android:paddingBottom="12dp"
+            android:text="@string/main_subtitle"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp" />
+    </com.google.android.material.appbar.AppBarLayout>
+
+    <!-- 底部岛：试验版换成液态玻璃容器（MIT, API33+），
+         自带折射/色散/模糊 + outline 圆角裁切，背景由 bind() 的采样源实时折射。
+         内容（滑块 + 双 Tab）照常画在玻璃层之上。 -->
+    <com.qmdeve.liquidglass.widget.LiquidGlassView
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="@dimen/tab_bar_height"
         android:layout_gravity="bottom"
         android:layout_marginStart="@dimen/space_4"
-        android:layout_marginEnd="@dimen/space_4"
-        android:background="@drawable/bg_bottom_nav">
+        android:layout_marginEnd="@dimen/space_4">
 
         <com.timestamp.recorder.TabSliderView
             android:id="@+id/tabSlider"
@@ -141,6 +131,12 @@
                     android:textSize="15sp" />
             </LinearLayout>
 
+            <!-- 中缝禁区：宽度 = 加号圆钮 + 两侧呼吸缝，与 TabSliderView 的滑块几何一致，
+                 让左右 Tab 内容的中心正好落在各自滑块胶囊的中心 -->
+            <View
+                android:layout_width="@dimen/fab_glass_gap"
+                android:layout_height="match_parent" />
+
             <LinearLayout
                 android:id="@+id/tabTimeline"
                 android:layout_width="0dp"
@@ -166,5 +162,27 @@
                     android:textSize="15sp" />
             </LinearLayout>
         </LinearLayout>
-    </eightbitlab.com.blurview.BlurView>
+    </com.qmdeve.liquidglass.widget.LiquidGlassView>
+
+    <!-- 加号：与岛同材质的独立液态玻璃圆钮。
+         ⚠️ 必须放在 root 层（root 是标准 FrameLayout，gravity 才生效）——
+         LiquidGlassView 自定义了 onLayout，子 View 会被铺满/忽略 gravity（加号跑到左上角踩过）。
+         垂直位置由 applyFabPosition 动态对齐「岛的正中心」。 -->
+    <com.qmdeve.liquidglass.widget.LiquidGlassView
+        android:id="@+id/fabGlass"
+        android:layout_width="52dp"
+        android:layout_height="52dp"
+        android:layout_gravity="center_horizontal|bottom"
+        android:layout_marginBottom="118dp"
+        android:elevation="10dp">
+
+        <ImageButton
+            android:id="@+id/fabAdd"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/fab_add"
+            android:scaleType="center"
+            android:src="@drawable/ic_add" />
+    </com.qmdeve.liquidglass.widget.LiquidGlassView>
 </FrameLayout>

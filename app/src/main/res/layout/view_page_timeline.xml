@@ -35,6 +35,5 @@
         android:paddingEnd="16dp"
         android:paddingTop="0dp"
         android:paddingBottom="0dp"
-        android:scrollbars="vertical"
-        android:visibility="gone" />
+        android:scrollbars="vertical" />
 </FrameLayout>

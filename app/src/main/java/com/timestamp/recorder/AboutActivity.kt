@@ -10,6 +10,8 @@ class AboutActivity : BaseActivity() {
         val binding = ActivityAboutBinding.inflate(layoutInflater)
         setContentView(binding.root)
         setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.about_title, showBack = true, scrollContent = binding.scrollContent)
+        // 液态玻璃顶栏（与主页同源）：内容滚动时从玻璃底下穿过实时折射
+        installLiquidTopGlass(binding.topGlass, binding.appBar, binding.scrollContent)
 
         binding.tvVersion.text = getString(R.string.about_version, BuildConfig.VERSION_NAME, BuildConfig.VERSION_CODE)
 

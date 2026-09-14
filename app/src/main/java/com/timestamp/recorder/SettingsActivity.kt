@@ -20,11 +20,6 @@ class SettingsActivity : BaseActivity() {
 
     companion object {
         const val PREFS = "tsr_settings"
-        const val KEY_FAB_POS = "fab_pos"
-        const val FAB_START = "start"
-        const val FAB_CENTER = "center"
-        const val FAB_END = "end"
-
         /** 事件排序方式：手动（拖拽）/ 按最近记录时间 */
         const val KEY_SORT_MODE = "sort_mode"
         const val SORT_MANUAL = "manual"
@@ -88,21 +83,8 @@ class SettingsActivity : BaseActivity() {
 
         // 统一工具栏 + 沉浸式 + 字体（由 BaseActivity 处理）
         setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.settings_title, showBack = true, scrollContent = binding.scrollContent)
-
-        when (prefs.getString(KEY_FAB_POS, FAB_END)) {
-            FAB_START -> binding.rbStart.isChecked = true
-            FAB_CENTER -> binding.rbCenter.isChecked = true
-            else -> binding.rbEnd.isChecked = true
-        }
-
-        binding.radioFabPos.setOnCheckedChangeListener { _, checkedId ->
-            val pos = when (checkedId) {
-                com.timestamp.recorder.R.id.rbStart -> FAB_START
-                com.timestamp.recorder.R.id.rbCenter -> FAB_CENTER
-                else -> FAB_END
-            }
-            prefs.edit().putString(KEY_FAB_POS, pos).apply()
-        }
+        // 液态玻璃顶栏（与主页同源）：内容滚动时从玻璃底下穿过实时折射
+        installLiquidTopGlass(binding.topGlass, binding.appBar, binding.scrollContent)
 
         // 小组件圆角档位
         when (WidgetPrefs.corner(this)) {

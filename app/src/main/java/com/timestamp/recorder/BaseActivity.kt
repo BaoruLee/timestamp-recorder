@@ -86,6 +86,63 @@ abstract class BaseActivity : AppCompatActivity() {
     private var scrollBaseBottom = -1
 
     /**
+     * 二级页面统一的液态玻璃顶栏（与主页同源，风格统一）。
+     *
+     * ⚠️ 结构铁律：[topGlass] 必须是采样源 [content] 的**兄弟层**（XML 里不能放进 content
+     * 内部）—— 每帧录制时 content.draw() 会把玻璃自己画进 RenderNode，形成「显示列表
+     * 包含自己」的无限递归 → RenderThread 栈溢出 SIGSEGV（主页踩过）。
+     *
+     * - [content] 的顶部让位 = appBar 实际高度（含状态栏 inset）+ [contentBaseTop]，
+     *   内容滚动时从玻璃底下穿过（NestedScrollView / RecyclerView 需 clipToPadding=false）；
+     * - API < 33 液态玻璃不可用：topGlass 隐藏，页面退回普通顶栏（让位照旧，不压内容）。
+     */
+    protected fun installLiquidTopGlass(
+        topGlass: com.qmdeve.liquidglass.widget.LiquidGlassView,
+        appBar: View,
+        content: View,
+        contentBaseTop: Int = 0
+    ) {
+        appBar.viewTreeObserver.addOnGlobalLayoutListener(object :
+            android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                val h = appBar.height
+                if (h <= 0) return
+                val lp = topGlass.layoutParams
+                if (lp.height != h) {
+                    lp.height = h
+                    topGlass.layoutParams = lp
+                }
+                val want = contentBaseTop + h
+                if (content.paddingTop != want) content.updatePadding(top = want)
+            }
+        })
+        if (android.os.Build.VERSION.SDK_INT >= 33) {
+            try {
+                topGlass.bind(content as android.view.ViewGroup)
+                val d = resources.displayMetrics.density
+                topGlass.setCornerRadius(0f)
+                topGlass.setBlurRadius((14f * d).coerceAtMost(50f))
+                topGlass.setRefractionHeight(16f * d)
+                val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                        Configuration.UI_MODE_NIGHT_YES
+                if (night) {
+                    topGlass.setTintColorRed(0.12f)
+                    topGlass.setTintColorGreen(0.12f)
+                    topGlass.setTintColorBlue(0.18f)
+                    topGlass.setTintAlpha(0.38f)
+                } else {
+                    topGlass.setTintColorRed(1f)
+                    topGlass.setTintColorGreen(1f)
+                    topGlass.setTintColorBlue(1f)
+                    topGlass.setTintAlpha(0.12f)
+                }
+            } catch (_: Throwable) { }
+        } else {
+            topGlass.visibility = android.view.View.GONE
+        }
+    }
+
+    /**
      * 沉浸式：状态栏 / 导航栏透明（通杀各品牌，含小米 HyperOS 手势条）。
      *
      * ⚠️ **这里刻意不用 AndroidX 的 `enableEdgeToEdge(statusBarStyle = ...)`**：

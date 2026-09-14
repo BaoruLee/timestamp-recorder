@@ -4,36 +4,18 @@
   这样各组之间有明确的「切割」，滚动时不会糊成一片；卡片内再按
   标题 → 说明 → 控件的固定节奏排布，扫一眼就知道哪几项是一组的。
 -->
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
     android:background="@drawable/bg_main_gradient">
 
-    <com.google.android.material.appbar.AppBarLayout
-        android:id="@+id/appBar"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="@color/glass_toolbar"
-        app:elevation="0dp">
-
-        <com.google.android.material.appbar.MaterialToolbar
-            android:id="@+id/toolbar"
-            android:layout_width="match_parent"
-            android:layout_height="?attr/actionBarSize"
-            app:navigationIcon="@drawable/ic_back"
-            app:title="@string/settings_title"
-            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
-    </com.google.android.material.appbar.AppBarLayout>
-
-    <!-- 内容区必须可滚动：设置项较多时（尤其小屏 / 大字号），
-         否则底部的「关于」会够不到 -->
+    <!-- 内容区：全高铺满（液态玻璃顶栏的采样源），滚动时内容从玻璃底下穿过实时折射；
+         顶部让位 = AppBar 实际高度（含状态栏），由 BaseActivity.installLiquidTopGlass 统一设置 -->
     <androidx.core.widget.NestedScrollView
         android:id="@+id/scrollContent"
         android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
+        android:layout_height="match_parent"
         android:clipToPadding="false"
         android:paddingBottom="28dp">
 
@@ -46,80 +28,7 @@
             android:paddingTop="@dimen/space_4">
 
             <!-- ========== 1. 快捷按钮位置 ========== -->
-            <com.google.android.material.card.MaterialCardView
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                app:cardBackgroundColor="@color/glass_card"
-                app:cardCornerRadius="@dimen/radius_lg"
-                app:cardElevation="0dp"
-                app:strokeWidth="1dp"
-                app:strokeColor="@color/glass_stroke"
-                style="?attr/materialCardViewFilledStyle">
-
-                <LinearLayout
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:orientation="vertical"
-                    android:padding="18dp">
-
-                    <TextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/fab_position_label"
-                        android:textColor="?attr/colorOnSurface"
-                        android:textSize="16sp"
-                        android:textStyle="bold" />
-
-                    <TextView
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="4dp"
-                        android:text="@string/fab_position_hint"
-                        android:textColor="?attr/colorOnSurfaceVariant"
-                        android:textSize="12sp" />
-
-                    <RadioGroup
-                        android:id="@+id/radioFabPos"
-                        android:layout_width="match_parent"
-                        android:layout_height="wrap_content"
-                        android:layout_marginTop="8dp"
-                        android:orientation="vertical">
-
-                        <com.google.android.material.radiobutton.MaterialRadioButton
-                            android:id="@+id/rbStart"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:buttonTint="?attr/colorPrimary"
-                            android:paddingTop="10dp"
-                            android:paddingBottom="10dp"
-                            android:text="@string/fab_pos_start"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="15sp" />
-
-                        <com.google.android.material.radiobutton.MaterialRadioButton
-                            android:id="@+id/rbCenter"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:buttonTint="?attr/colorPrimary"
-                            android:paddingTop="10dp"
-                            android:paddingBottom="10dp"
-                            android:text="@string/fab_pos_center"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="15sp" />
-
-                        <com.google.android.material.radiobutton.MaterialRadioButton
-                            android:id="@+id/rbEnd"
-                            android:layout_width="match_parent"
-                            android:layout_height="wrap_content"
-                            android:buttonTint="?attr/colorPrimary"
-                            android:paddingTop="10dp"
-                            android:paddingBottom="10dp"
-                            android:text="@string/fab_pos_end"
-                            android:textColor="?attr/colorOnSurface"
-                            android:textSize="15sp" />
-                    </RadioGroup>
-                </LinearLayout>
-            </com.google.android.material.card.MaterialCardView>
+            
 
             <!-- ========== 2. 事件排序 ========== -->
             <com.google.android.material.card.MaterialCardView
@@ -561,4 +470,28 @@
 
         </LinearLayout>
     </androidx.core.widget.NestedScrollView>
-</LinearLayout>
+
+    <!-- 液态玻璃顶栏：衬在透明 AppBar 之下，实时折射滚动内容（采样源=scrollContent 的父级root） -->
+    <com.qmdeve.liquidglass.widget.LiquidGlassView
+        android:id="@+id/topGlass"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clickable="false"
+        android:focusable="false" />
+
+    <com.google.android.material.appbar.AppBarLayout
+        android:id="@+id/appBar"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="@android:color/transparent"
+        app:elevation="0dp">
+
+        <com.google.android.material.appbar.MaterialToolbar
+            android:id="@+id/toolbar"
+            android:layout_width="match_parent"
+            android:layout_height="?attr/actionBarSize"
+            app:navigationIcon="@drawable/ic_back"
+            app:title="@string/settings_title"
+            app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
+    </com.google.android.material.appbar.AppBarLayout>
+</FrameLayout>

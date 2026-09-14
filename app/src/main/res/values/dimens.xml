@@ -17,6 +17,8 @@
 
     <!-- 底部胶囊岛（事件 / 时间线）与 FAB -->
     <dimen name="tab_bar_height">56dp</dimen>
+    <dimen name="fab_glass_size">52dp</dimen>
+    <dimen name="fab_glass_gap">60dp</dimen>
     <dimen name="island_bottom_gap">12dp</dimen>
     <dimen name="fab_margin">24dp</dimen>
     <dimen name="fab_bottom_margin">96dp</dimen>
