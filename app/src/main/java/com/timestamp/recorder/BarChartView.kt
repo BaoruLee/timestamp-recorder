@@ -75,6 +75,8 @@ class BarChartView @JvmOverloads constructor(
         // 柱子多的时候（如近 14 天）逐条画标签会糊成一片，隔条画并让文案自适应宽度
         val labelStep = if (slot < 16f * density) 2 else 1
         val labelMaxW = slot - 2f * density
+        // 柱顶小圆角即可：radius 取 barW/2 会变成全胶囊形，柱子一高就显得又圆又笨
+        val barRadius = minOf(4f * density, barW / 2f)
 
         items.forEachIndexed { i, item ->
             val cx = padX + slot * i + slot / 2f
@@ -83,7 +85,7 @@ class BarChartView @JvmOverloads constructor(
             val top = h - bottomPad - barH
             val bottom = h - bottomPad
             barPaint.color = item.color
-            canvas.drawRoundRect(RectF(left, top, left + barW, bottom), barW / 2f, barW / 2f, barPaint)
+            canvas.drawRoundRect(RectF(left, top, left + barW, bottom), barRadius, barRadius, barPaint)
 
             if (item.value > 0) {
                 valuePaint.textAlign = Paint.Align.CENTER
