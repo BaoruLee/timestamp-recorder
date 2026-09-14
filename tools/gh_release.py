@@ -2,10 +2,17 @@
 # -*- coding: utf-8 -*-
 """
 发布 GitHub Release：读取 build.gradle 的版本号 -> 找到对应 APK ->
-对比上一个 tag 生成简洁更新说明 -> 创建 Release 并上传 APK。
+生成更新说明 -> 创建 Release 并上传 APK。
 
 用法（在项目根目录执行）：
     python tools/gh_release.py
+
+更新说明的优先级：
+    1. docs/release-notes/<tag>.md   （手写，若存在则原样使用）
+    2. 自动生成：
+       - 大版本 x.0.0  -> README 主体（重新完整介绍一遍）
+       - 中版本 x.y.0  -> 按 commit 前缀分「新功能 / 其他变更」
+       - 小版本 x.y.z  -> 极简变更列表
 
 Token 获取优先级：
     1. 环境变量 GH_TOKEN
@@ -14,12 +21,14 @@ Token 获取优先级：
 import json
 import os
 import re
+import socket
 import subprocess
 import sys
 import urllib.error
 import urllib.request
 
-REPO = "baoru0908/timestamp-recorder"  # 账号已由 BaoruLee 改名，须用新名字，旧名仅靠重定向
+# 账号由 BaoruLee 改名为 baoru0908，须用新名字（旧名仅靠重定向撑着）
+REPO = "baoru0908/timestamp-recorder"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 # Release red line: the APK attached to a GitHub Release MUST be signed with
@@ -146,6 +155,19 @@ def parse_version(v):
     return int(parts[0]), int(parts[1]), int(parts[2])
 
 
+def read_notes_override(tag):
+    """手写更新说明：docs/release-notes/<tag>.md 存在时优先用它。
+
+    自动生成的说明要么是整份 README、要么是一串 commit 标题，都当不了
+    「像样的更新日志」。想认真写一版，就丢一个同名 md 进去。
+    """
+    p = os.path.join(ROOT, "docs", "release-notes", tag + ".md")
+    if os.path.exists(p):
+        with open(p, encoding="utf-8") as f:
+            return f.read().strip()
+    return None
+
+
 def read_readme_intro():
     """大版本用：从 README.md 提取主体作为完整介绍（跳过开头 badge / div）。"""
     p = os.path.join(ROOT, "README.md")
@@ -203,6 +225,9 @@ def delete_existing(tag):
 
 def main():
     global TOKEN
+    # 国内网络经代理访问 GitHub 偶有半死连接，加个超时免得一直挂着
+    socket.setdefaulttimeout(120)
+
     TOKEN = get_token()
     version = read_version()
     tag = "v" + version
@@ -221,27 +246,30 @@ def main():
     commits = [c for c in log_raw.splitlines() if c.strip()]
 
     # 版本类型决定更新说明详略：
-    #   大版本（x.0.0）= 完整重新介绍一遍（含 README 主体）
-    #   中版本（x.y.0）= 介绍新功能（新功能详细，其余简洁）
-    #   小版本（x.y.z, z>0）= 极简变更列表
-    if minor == 0 and patch == 0:
+    #   手写 notes > 大版本（x.0.0，完整重新介绍） > 中版本（x.y.0，介绍新功能）
+    #   > 小版本（x.y.z, z>0，极简变更列表）
+    override = read_notes_override(tag)
+    if override:
+        body = override
+        kind = "手写说明 (docs/release-notes/%s.md)" % tag
+    elif minor == 0 and patch == 0:
+        kind = "大版本（README 主体）"
         intro = read_readme_intro()
         body = ("# 时间戳记录 v%s 正式发布\n\n" % version) + intro + \
                "\n\n> 覆盖安装不会丢失已有事件与记录数据。完整更新历史见各版本 Releases。"
     elif minor > 0 and patch == 0:
+        kind = "中版本（新功能 + 其他变更）"
         feats, others = split_commits(commits)
         body = "## 新功能\n" + (feats or "- （见下方变更）") + \
                "\n\n## 其他变更\n" + (others or "- 无") + \
                "\n\n> 覆盖安装不会丢失已有事件与记录数据。"
     else:
+        kind = "小版本（变更列表）"
         log = "\n".join("- " + c for c in commits) or ("- 发布 v%s" % version)
         body = ("## 相比 %s 的变更\n\n%s\n\n" % (prev or "上一版", log)) + \
                "> 覆盖安装不会丢失已有事件与记录数据。"
 
-    print("版本: %s  类型: %s  对比基准: %s" % (
-        tag,
-        "大版本" if (minor == 0 and patch == 0) else ("中版本" if minor > 0 and patch == 0 else "小版本"),
-        prev or "(首个版本)"))
+    print("版本: %s  说明来源: %s  对比基准: %s" % (tag, kind, prev or "(首个版本)"))
     delete_existing(tag)
 
     rel = api("/repos/%s/releases" % REPO, {
@@ -252,7 +280,6 @@ def main():
     }, method="POST")
     if not isinstance(rel, dict):
         sys.exit("创建 Release 返回异常响应: %r" % (rel,))
-    rel_id = rel["id"]
     upload_url = rel["upload_url"].split("{")[0]
 
     with open(apk, "rb") as f:
