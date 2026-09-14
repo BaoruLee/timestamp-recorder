@@ -37,4 +37,6 @@
 
     <!-- 右上角「⋮」玻璃菜单：宽度写死，代码靠它把菜单算在屏幕内（不至于顶出画面） -->
     <dimen name="overflow_menu_width">188dp</dimen>
+    <!-- 菜单顶边与「⋮」下沿的间距：够近（像从按钮里长出来），又不至于压到左边的副标题 -->
+    <dimen name="overflow_menu_gap">6dp</dimen>
 </resources>

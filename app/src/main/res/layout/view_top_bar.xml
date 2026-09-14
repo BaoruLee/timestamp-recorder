@@ -1,27 +1,28 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 顶部玻璃栏（跑在独立窗口里，模糊由系统做）。
-     结构与原来的 AppBar 一致：标题 + 副标题；statusBar 的内边距由代码加在根布局上。 -->
+     ⚠️ 布局要点：标题与副标题竖着一组，「⋮」**垂直居中于整块栏**（而不是只居中标题那一行）。
+     这样 ⋮ 的下沿就非常接近栏底 —— 菜单挂在它正下方展开时，离按钮只有几 dp，
+     不会像之前那样中间还隔着一行副标题的落差。statusBar 的内边距由代码加在根布局上。 -->
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/topBarRoot"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
-    android:orientation="vertical"
+    android:gravity="center_vertical"
+    android:orientation="horizontal"
     android:paddingStart="20dp"
     android:paddingEnd="8dp"
-    android:paddingBottom="12dp">
+    android:paddingBottom="8dp">
 
     <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:orientation="horizontal"
-        android:gravity="center_vertical">
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:layout_weight="1"
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/topTitle"
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
             android:ellipsize="end"
             android:maxLines="1"
             android:text="@string/main_title"
@@ -29,21 +30,22 @@
             android:textSize="22sp"
             android:textStyle="bold" />
 
-        <ImageButton
-            android:id="@+id/btnMore"
-            android:layout_width="44dp"
-            android:layout_height="44dp"
-            android:background="?attr/selectableItemBackgroundBorderless"
-            android:contentDescription="@string/menu_more"
-            android:scaleType="center"
-            android:src="@drawable/ic_more_vert" />
+        <TextView
+            android:id="@+id/topSubtitle"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="1dp"
+            android:text="@string/main_subtitle"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="13sp" />
     </LinearLayout>
 
-    <TextView
-        android:id="@+id/topSubtitle"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:text="@string/main_subtitle"
-        android:textColor="?attr/colorOnSurfaceVariant"
-        android:textSize="13sp" />
+    <ImageButton
+        android:id="@+id/btnMore"
+        android:layout_width="44dp"
+        android:layout_height="44dp"
+        android:background="?attr/selectableItemBackgroundBorderless"
+        android:contentDescription="@string/menu_more"
+        android:scaleType="center"
+        android:src="@drawable/ic_more_vert" />
 </LinearLayout>

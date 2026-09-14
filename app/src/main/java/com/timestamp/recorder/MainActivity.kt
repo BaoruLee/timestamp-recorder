@@ -317,7 +317,6 @@ class MainActivity : BaseActivity() {
      */
     private fun applyTopBarInsets() {
         if (topBarMode != MODE_WINDOW_BLUR || topBarRoot == null) {
-            topBarBottomPx = 0
             restoreTopPadding()
             return
         }
@@ -350,8 +349,6 @@ class MainActivity : BaseActivity() {
         binding.root.getLocationOnScreen(hostLoc)
         val gap = resources.getDimensionPixelSize(R.dimen.space_2)
         val base = (covered - hostLoc[1]).coerceAtLeast(0)
-        // 记下玻璃栏下沿：「⋮」菜单要挂在这里往下展开
-        topBarBottomPx = covered
         if (winH > 0 && covered > 0) {
             binding.recyclerEvents.applyTopPadding(base + gap)
             binding.recyclerTimeline.applyTopPadding(0)
@@ -429,14 +426,11 @@ class MainActivity : BaseActivity() {
         val loc = IntArray(2)
         anchor.getLocationOnScreen(loc)
         val x = (loc[0] + anchor.width - menuW + m).coerceIn(m, maxX)
-        // 上沿挂在**玻璃栏的下沿**下面一点点，而不是按钮正下方 ——
-        // 「⋮」在栏内部，栏下面还有一行副标题，从按钮底下展开会整块盖住副标题。
-        // 于是菜单看起来是从这块玻璃里长出来的（缩放原点也在右上角，正对按钮）。
-        val y = if (topBarBottomPx > 0) {
-            topBarBottomPx + m
-        } else {
-            (loc[1] + anchor.height + m).coerceAtLeast(m)
-        }
+        // 上沿就贴在「⋮」下沿下面 6dp —— 视觉上是从按钮里长出来的（缩放原点也在右上角）。
+        // 之前挂在「玻璃栏下沿」，中间还隔着一行副标题的落差，看着就远了；
+        // 现在 ⋮ 垂直居中于整块栏，它的下沿离栏底只剩几 dp，所以直接锚按钮就又近又不压字。
+        val y = (loc[1] + anchor.height +
+                resources.getDimensionPixelSize(R.dimen.overflow_menu_gap)).coerceAtLeast(m)
 
         dlg.window?.let { w ->
             w.setDimAmount(0f)
@@ -530,9 +524,6 @@ class MainActivity : BaseActivity() {
 
     /** 顶部玻璃栏是否生效（-1 = 尚未定过） */
     private var topBarMode = -1
-
-    /** 玻璃顶栏**下沿**在屏幕上的 y（「⋮」菜单要挂在这里往下展开；0 = 还没测到） */
-    private var topBarBottomPx = 0
 
     // 布局里原本的留白，退出玻璃顶栏（如系统关掉高级材质）时要还原
     private var origListTopPadding = 0
