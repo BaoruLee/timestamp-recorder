@@ -28,6 +28,9 @@ import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.timestamp.recorder.databinding.ActivityMainBinding
 import com.timestamp.recorder.databinding.DialogEditEventBinding
+import androidx.viewpager2.widget.ViewPager2
+import com.timestamp.recorder.databinding.ViewPageEventsBinding
+import com.timestamp.recorder.databinding.ViewPageTimelineBinding
 import com.timestamp.recorder.databinding.ItemEventBinding
 import com.timestamp.recorder.databinding.ItemTimelineCapBinding
 import com.timestamp.recorder.databinding.ItemTimelineMonthBinding
@@ -37,6 +40,7 @@ import com.timestamp.recorder.databinding.ViewOverflowMenuBinding
 import java.util.Calendar
 import java.util.Collections
 import java.util.Locale
+import kotlin.math.abs
 
 /**
  * 主页：底部「事件 / 时间线」双 Tab（参考 Last Time 布局）。
@@ -65,6 +69,8 @@ class MainActivity : BaseActivity() {
     }
 
     private lateinit var binding: ActivityMainBinding
+    private lateinit var pageEvents: ViewPageEventsBinding
+    private lateinit var pageTimeline: ViewPageTimelineBinding
     private lateinit var repo: EventRepository
     private val adapter = EventAdapter()
     private val timelineAdapter = TimelineAdapter()
@@ -96,31 +102,61 @@ class MainActivity : BaseActivity() {
         setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.main_title, showBack = false)
         repo = EventRepository(this)
 
-        binding.recyclerEvents.layoutManager = LinearLayoutManager(this)
-        binding.recyclerEvents.adapter = adapter
-        touchHelper.attachToRecyclerView(binding.recyclerEvents)
+        // 两个页面（事件 / 时间线）各自 inflate，交给 ViewPager2 做跟手横滑
+        pageEvents = ViewPageEventsBinding.inflate(layoutInflater)
+        pageTimeline = ViewPageTimelineBinding.inflate(layoutInflater)
+        binding.viewPager.adapter = PageAdapter()
+        binding.viewPager.registerOnPageChangeCallback(pageCallback)
 
-        binding.recyclerTimeline.layoutManager = LinearLayoutManager(this)
-        binding.recyclerTimeline.adapter = timelineAdapter
+        pageEvents.recyclerEvents.layoutManager = LinearLayoutManager(this)
+        pageEvents.recyclerEvents.adapter = adapter
+        touchHelper.attachToRecyclerView(pageEvents.recyclerEvents)
+
+        pageTimeline.recyclerTimeline.layoutManager = LinearLayoutManager(this)
+        pageTimeline.recyclerTimeline.adapter = timelineAdapter
 
         binding.fabAdd.setOnClickListener { showEditDialog(null) }
-        // 时间线列表不留底部留白：「收笔」那一段自己负责盖住底部（否则收到最后一屏会有一截没上色）
-        binding.recyclerTimeline.setPadding(
-            binding.recyclerTimeline.paddingLeft,
-            binding.recyclerTimeline.paddingTop,
-            binding.recyclerTimeline.paddingRight,
-            0
-        )
         // 记下布局里原本的留白：顶部玻璃栏开启 / 关闭时要来回切换
-        origListTopPadding = binding.recyclerEvents.paddingTop
+        origListTopPadding = pageEvents.recyclerEvents.paddingTop
         origEmptyTopMargin =
-            (binding.tvEmpty.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
+            (pageEvents.tvEmpty.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         applyFabPosition()
         setupBottomBar()
         styleTab()
         // 若从详情页菜单直达时间线 Tab，需在渲染后生效
         if (intent.getBooleanExtra(EXTRA_OPEN_TIMELINE, false)) {
             selectTab(TAB_TIMELINE)
+        }
+    }
+
+    /**
+     * ViewPager2 的页面适配器：只有两页（事件 / 时间线），内容是预构建的视图，不做事。
+     * offscreenPageLimit 默认 1，两页互相都保留在层级里，不会发生回收重建。
+     */
+    private inner class PageAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+        override fun getItemCount() = 2
+        override fun getItemViewType(position: Int) = position
+        override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
+            val view = if (viewType == TAB_EVENTS) pageEvents.root else pageTimeline.root
+            view.layoutParams = ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT, ViewGroup.LayoutParams.MATCH_PARENT
+            )
+            return object : RecyclerView.ViewHolder(view) {}
+        }
+        override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {}
+    }
+
+    /** ViewPager2 → 底栏的联动：滑动逐帧推滑块，落页后同步选中态与各控件可见性 */
+    private val pageCallback = object : ViewPager2.OnPageChangeCallback() {
+        override fun onPageScrolled(position: Int, positionOffset: Float, offsetPx: Int) {
+            moveSlider(position + positionOffset)
+        }
+        override fun onPageSelected(position: Int) {
+            if (currentTab != position) {
+                currentTab = position
+                styleTab()
+                updateVisibility()
+            }
         }
     }
 
@@ -196,6 +232,7 @@ class MainActivity : BaseActivity() {
                 binding.bottomBar.visibility = View.VISIBLE
                 tabEventsRef = layoutTabEvents
                 tabTimelineRef = layoutTabTimeline
+                bindSlider(binding.tabSlider)
             }
             tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
             tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
@@ -395,8 +432,8 @@ class MainActivity : BaseActivity() {
         val gap = resources.getDimensionPixelSize(R.dimen.space_2)
         val base = (covered - hostLoc[1]).coerceAtLeast(0)
         if (winH > 0 && covered > 0) {
-            binding.recyclerEvents.applyTopPadding(base + gap)
-            binding.recyclerTimeline.applyTopPadding(0)
+            pageEvents.recyclerEvents.applyTopPadding(base + gap)
+            pageTimeline.recyclerTimeline.applyTopPadding(0)
             applyEmptyTopPadding(base + gap * 3)
         }
     }
@@ -405,8 +442,8 @@ class MainActivity : BaseActivity() {
      *  ⚠️ 时间线的顶部留白**永远为 0**：起笔（Cap）负责把彩色线顶到「当前顶端」，
      *  留白会在顶端留出一截没颜色的空档（两种顶栏形态下都一样）。 */
     private fun restoreTopPadding() {
-        binding.recyclerEvents.applyTopPadding(origListTopPadding)
-        binding.recyclerTimeline.applyTopPadding(0)
+        pageEvents.recyclerEvents.applyTopPadding(origListTopPadding)
+        pageTimeline.recyclerTimeline.applyTopPadding(0)
         applyEmptyTopPadding(origEmptyTopMargin)
     }
 
@@ -427,7 +464,7 @@ class MainActivity : BaseActivity() {
     }
 
     private fun applyEmptyTopPadding(px: Int) {
-        for (v in listOf(binding.tvEmpty, binding.tvEmptyTimeline)) {
+        for (v in listOf(pageEvents.tvEmpty, pageTimeline.tvEmptyTimeline)) {
             (v.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
                 if (lp.topMargin != px) {
                     lp.topMargin = px
@@ -615,6 +652,7 @@ class MainActivity : BaseActivity() {
             content.findViewById(R.id.iconTimeline),
             content.findViewById(R.id.textTimeline)
         )
+        bindSlider(content.findViewById(R.id.tabSlider))
         tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
         tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
 
@@ -714,6 +752,17 @@ class MainActivity : BaseActivity() {
     private var tabEventsRef: TabViews? = null
     private var tabTimelineRef: TabViews? = null
 
+    /** 当前生效形态里的选中态滑块（切 Tab 时在两个 Tab 之间平移的那块玻璃胶囊） */
+    private var tabSliderRef: View? = null
+
+    /** 让 [slider] 成为当前生效的滑块，并挂上「布局一变就重新就位（不带动画）」的监听 */
+    private fun bindSlider(slider: View) {
+        tabSliderRef = slider
+        slider.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            ensureSliderGeometry()
+        }
+    }
+
     /** 当前底部栏实测高度（= 内容高 + 导航栏 inset），FAB 据此上移 */
     private var barHeightPx = 0
 
@@ -805,7 +854,9 @@ class MainActivity : BaseActivity() {
         getSharedPreferences(SettingsActivity.PREFS, MODE_PRIVATE)
             .getString(SettingsActivity.KEY_SORT_MODE, SettingsActivity.SORT_MANUAL) ?: SettingsActivity.SORT_MANUAL
 
-    // ---------- 底部 Tab 切换 ----------
+    // ---------- 底部 Tab 切换（ViewPager2 跟手横滑 + 滑块逐帧联动） ----------
+    // 页面切换完全交给 ViewPager2：跟手、可急停、可反向拖回都是它的标准能力，
+    // 自己再写 OnItemTouchListener 反而会和列表滚动打架（试过，删了）。
 
     private val tabPrimary: Int by lazy {
         com.google.android.material.color.MaterialColors.getColor(
@@ -817,65 +868,99 @@ class MainActivity : BaseActivity() {
     }
 
     private fun selectTab(tab: Int) {
-        currentTab = tab
-        styleTab()
-        updateVisibility()
+        // 落页后 onPageSelected 会同步选中态；这里只管把页面平滑滚过去
+        if (binding.viewPager.currentItem != tab) {
+            binding.viewPager.currentItem = tab
+        }
     }
 
-    /** 选中 Tab = 玻璃胶囊高亮；未选中 = 透明 + 次要色。
-     *  底栏可能在布局内、也可能在独立窗口里，这里统一取当前生效的那个。 */
+    /** 选中 Tab = 文字/图标提亮 + 滑块滑到该 Tab（滑块位置由 ViewPager2 联动驱动）。 */
     private fun styleTab() {
         val eventsSelected = currentTab == TAB_EVENTS
         val ev = tabEventsRef ?: layoutTabEvents
         val tl = tabTimelineRef ?: layoutTabTimeline
         setTabLook(ev, eventsSelected)
         setTabLook(tl, !eventsSelected)
+        ensureSliderGeometry()
+        moveSlider(currentTab.toFloat())
     }
 
     /**
-     * 选中 Tab = 一块**内嵌玻璃胶囊**（半透明填充 + 一圈描边，把"轮廓"交代清楚）
-     * + 高对比文字与图标；未选中 = 透明底 + 次要色。
-     * 胶囊左右各内缩 4dp、上下 8dp，视觉上不贴边。
+     * 选中态的玻璃胶囊由**滑块 View** 统一承载（压在两个 Tab 内容的下层）：
+     * 切 Tab 时它 220ms 平滑滑过去，而不是背景瞬间跳变 —— 这是底部栏唯一的动画，
+     * 也是"选中了哪个"最直观的指示。文字/图标颜色仍由这里按选中态切换。
      */
     private fun setTabLook(tab: TabViews, selected: Boolean) {
+        tab.root.background = null
+        val content = if (selected) {
+            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                    Configuration.UI_MODE_NIGHT_YES
+            if (night) 0xFFEDEAF3.toInt() else 0xFF16181C.toInt()
+        } else {
+            tabOnSurfaceVariant
+        }
+        tab.text.setTextColor(content)
+        tab.icon.imageTintList = ColorStateList.valueOf(content)
+    }
+
+    /** 滑块的尺寸与玻璃底色只在这里保证一次；位置完全交给 [moveSlider] 逐帧驱动 */
+    private fun ensureSliderGeometry() {
+        val slider = tabSliderRef ?: return
+        val parent = slider.parent as? ViewGroup ?: return
+        if (parent.width == 0 || parent.height == 0) return
+        val pad = resources.getDimensionPixelSize(R.dimen.space_1)
+        val insetH = resources.getDimensionPixelSize(R.dimen.space_1).toFloat()
+        val insetV = resources.getDimensionPixelSize(R.dimen.space_2).toFloat()
+        val tabW = (parent.width - 2 * pad) / 2f
+        val lp = slider.layoutParams
+        if (lp.width != (tabW - 2 * insetH).toInt() || lp.height != (parent.height - 2 * insetV).toInt()) {
+            lp.width = (tabW - 2 * insetH).toInt()
+            lp.height = (parent.height - 2 * insetV).toInt()
+            slider.layoutParams = lp
+        }
         val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                 Configuration.UI_MODE_NIGHT_YES
-        if (selected) {
-            // 岛内的选中态 = 一块内嵌胶囊。白天在浅玻璃上「白上加白」几乎看不出边界，
-            // 所以补一圈淡淡的冷色描边（夜间用白描边），轮廓一眼可辨。
-            val insetH = resources.getDimensionPixelSize(R.dimen.space_1)
-            val insetV = resources.getDimensionPixelSize(R.dimen.space_2)
-            val fill = if (night) 0x2EFFFFFF else 0x1F000000
-            val stroke = if (night) 0x33FFFFFF else 0x2E5B6B8C
-            tab.root.background = android.graphics.drawable.InsetDrawable(
-                GradientDrawable().apply {
-                    cornerRadius = resources.getDimensionPixelSize(R.dimen.radius_lg).toFloat()
-                    setColor(fill)
-                    setStroke(resources.getDimensionPixelSize(R.dimen.space_1) / 4, stroke)
-                }, insetH, insetV, insetH, insetV
-            )
-            val content = if (night) 0xFFEDEAF3.toInt() else 0xFF16181C.toInt()
-            tab.text.setTextColor(content)
-            tab.icon.imageTintList = ColorStateList.valueOf(content)
-        } else {
-            tab.root.background = null
-            tab.text.setTextColor(tabOnSurfaceVariant)
-            tab.icon.imageTintList = ColorStateList.valueOf(tabOnSurfaceVariant)
+        if (slider.background == null) {
+            // 白天在浅玻璃上「白上加白」几乎看不出边界，补一圈冷灰蓝描边（夜间用白描边）
+            slider.background = GradientDrawable().apply {
+                cornerRadius = resources.getDimensionPixelSize(R.dimen.radius_lg).toFloat()
+                setColor(if (night) 0x2EFFFFFF else 0x1F000000)
+                setStroke(
+                    resources.getDimensionPixelSize(R.dimen.space_1) / 4,
+                    if (night) 0x33FFFFFF else 0x2E5B6B8C
+                )
+            }
         }
+    }
+
+    /**
+     * 滑块位置：由 ViewPager2 的 `onPageScrolled(position, positionOffset)` 逐帧调用，
+     * fraction = 当前页 + 滑动进度（0~1 连续）—— 所以滑块是**跟手**的：
+     * 手指拖到哪它跟到哪，中途停下它就停（急停），反向拖它就跟回去。
+     */
+    private fun moveSlider(fraction: Float) {
+        val slider = tabSliderRef ?: return
+        val parent = slider.parent as? ViewGroup ?: return
+        if (parent.width == 0) return
+        ensureSliderGeometry()
+        val pad = resources.getDimensionPixelSize(R.dimen.space_1)
+        val insetH = resources.getDimensionPixelSize(R.dimen.space_1).toFloat()
+        val tabW = (parent.width - 2 * pad) / 2f
+        slider.translationX = pad + fraction.coerceIn(0f, 1f) * tabW + insetH
     }
 
     /** 统一管理两个列表与各自空状态的可见性 */
     private fun updateVisibility() {
         val events = currentTab == TAB_EVENTS
-        binding.recyclerEvents.visibility = if (events) View.VISIBLE else View.GONE
-        binding.recyclerTimeline.visibility = if (events) View.GONE else View.VISIBLE
-        binding.tvEmpty.visibility = if (events && adapter.itemCount == 0) View.VISIBLE else View.GONE
-        binding.tvEmptyTimeline.visibility =
+        pageEvents.recyclerEvents.visibility = if (events) View.VISIBLE else View.GONE
+        pageTimeline.recyclerTimeline.visibility = if (events) View.GONE else View.VISIBLE
+        pageEvents.tvEmpty.visibility = if (events && adapter.itemCount == 0) View.VISIBLE else View.GONE
+        pageTimeline.tvEmptyTimeline.visibility =
             if (!events && timelineAdapter.itemCount == 0) View.VISIBLE else View.GONE
         // 「＋」是用来新建事件的，只在「事件」Tab 下出现；「时间线」Tab 下隐藏
         binding.fabAdd.visibility = if (events) View.VISIBLE else View.GONE
         // 时间线底轨：只在「时间线」Tab 显示（贯穿屏幕上下那条淡线）
-        binding.timelineTrack.visibility = if (events) View.GONE else View.VISIBLE
+        // 底轨在时间线页内部，跟着页面走，无需代码切换
     }
 
     // ---------- 菜单（设置 + 统计 + 教程；时间线走底部 Tab） ----------

@@ -69,59 +69,14 @@
                 android:textSize="13sp" />
         </com.google.android.material.appbar.AppBarLayout>
 
-        <!-- 内容区：事件列表 / 时间线列表（按 Tab 切换可见性） -->
-        <FrameLayout
+        <!-- 内容区：ViewPager2 承载「事件 / 时间线」两页 ——
+             跟手横滑、可急停、可反向拖回，是 AndroidX 的标准页面容器；
+             Tab 胶囊滑块通过 onPageScrolled 与它逐帧联动。 -->
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/viewPager"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior">
-
-            <TextView
-                android:id="@+id/tvEmpty"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="64dp"
-                android:gravity="center"
-                android:lineSpacingExtra="6dp"
-                android:text="@string/empty_events"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textSize="15sp"
-                android:visibility="gone" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/recyclerEvents"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:paddingTop="4dp"
-                android:paddingBottom="@dimen/list_bottom_padding"
-                android:scrollbars="vertical" />
-
-            <TextView
-                android:id="@+id/tvEmptyTimeline"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="64dp"
-                android:gravity="center"
-                android:lineSpacingExtra="6dp"
-                android:text="@string/timeline_empty"
-                android:textColor="?attr/colorOnSurfaceVariant"
-                android:textSize="15sp"
-                android:visibility="gone" />
-
-            <androidx.recyclerview.widget.RecyclerView
-                android:id="@+id/recyclerTimeline"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:clipToPadding="false"
-                android:paddingStart="16dp"
-                android:paddingEnd="16dp"
-                android:paddingTop="8dp"
-                android:paddingBottom="@dimen/list_bottom_padding"
-                android:scrollbars="vertical"
-                android:visibility="gone" />
-        </FrameLayout>
+            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
 
         <!-- 液态玻璃快捷按钮：位置可在设置页切换（左/中/右），上移至底部 Tab 栏上方 -->
         <ImageButton
@@ -150,6 +105,12 @@
         android:layout_marginStart="@dimen/space_4"
         android:layout_marginEnd="@dimen/space_4"
         android:background="@drawable/bg_bottom_nav">
+
+        <View
+            android:id="@+id/tabSlider"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_gravity="start|center_vertical" />
 
         <LinearLayout
             android:id="@+id/tabContent"

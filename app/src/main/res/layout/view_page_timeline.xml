@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 主页 · 「时间线」页（ViewPager2 的第 1 页）。
+     底轨（timelineTrack）放这页的最底层：跟着页面走，横滑时它自然只在时间线页可见。 -->
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <View
+        android:id="@+id/timelineTrack"
+        android:layout_width="2dp"
+        android:layout_height="match_parent"
+        android:layout_gravity="top"
+        android:layout_marginStart="@dimen/timeline_line_inset"
+        android:background="@drawable/timeline_track"
+        android:visibility="gone" />
+
+    <TextView
+        android:id="@+id/tvEmptyTimeline"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="64dp"
+        android:gravity="center"
+        android:lineSpacingExtra="6dp"
+        android:text="@string/timeline_empty"
+        android:textColor="?attr/colorOnSurfaceVariant"
+        android:textSize="15sp"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/recyclerTimeline"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:clipToPadding="false"
+        android:paddingStart="16dp"
+        android:paddingEnd="16dp"
+        android:paddingTop="0dp"
+        android:paddingBottom="0dp"
+        android:scrollbars="vertical"
+        android:visibility="gone" />
+</FrameLayout>
