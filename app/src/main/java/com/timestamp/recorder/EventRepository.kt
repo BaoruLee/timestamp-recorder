@@ -31,6 +31,14 @@ object EventColors {
     fun random(): Int = palette.random()
 }
 
+/** 时间线条目：一条记录 + 所属事件信息（事件名 / 事件色在记录时快照，避免查询时反复取事件表） */
+data class TimelineRecord(
+    val eventId: Long,
+    val eventName: String,
+    val eventColor: Int,
+    val millis: Long
+)
+
 /** 数据层：SharedPreferences + JSON，零第三方依赖、纯本地存储 */
 class EventRepository(context: Context) {
 
@@ -188,6 +196,18 @@ class EventRepository(context: Context) {
 
     fun lastRecord(eventId: Long): Long? = getRecords(eventId).firstOrNull()
 
+    /** 时间线：全部事件的所有记录合并，按时间倒序（最新在前）。事件被删时其记录一并删除，故无需过滤。 */
+    @Synchronized
+    fun getAllRecords(): List<TimelineRecord> {
+        val out = mutableListOf<TimelineRecord>()
+        for (ev in getEvents()) {
+            for (m in getRecords(ev.id)) {
+                out.add(TimelineRecord(ev.id, ev.name, ev.color, m))
+            }
+        }
+        return out.sortedByDescending { it.millis }
+    }
+
     private fun saveRecords(eventId: Long, records: List<Long>) {
         val arr = JSONArray()
         records.forEach { arr.put(it) }
@@ -199,6 +219,28 @@ class EventRepository(context: Context) {
 object TimeFormat {
     private val full = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss", java.util.Locale.getDefault())
     private val hm = java.text.SimpleDateFormat("HH:mm:ss", java.util.Locale.getDefault())
+    private val short = java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
     fun full(millis: Long): String = full.format(java.util.Date(millis))
     fun hm(millis: Long): String = hm.format(java.util.Date(millis))
+    fun short(millis: Long): String = short.format(java.util.Date(millis))
+
+    /**
+     * 相对时间（与参考 App「Last Time」时间线一致的中文格式）：
+     * 刚刚 / N 分钟前 / N 小时, M 分钟前 / N 天前
+     */
+    fun relative(context: android.content.Context, millis: Long, now: Long = System.currentTimeMillis()): String {
+        val diff = now - millis
+        if (diff < 60_000) return context.getString(R.string.timeline_just_now)
+        val min = diff / 60_000
+        return when {
+            min < 60 -> context.getString(R.string.timeline_minutes_ago, min)
+            min < 1440 -> {
+                val h = min / 60
+                val m = min % 60
+                if (m == 0L) context.getString(R.string.timeline_hours_ago, h)
+                else context.getString(R.string.timeline_hours_minutes_ago, h, m)
+            }
+            else -> context.getString(R.string.timeline_days_ago, min / 1440)
+        }
+    }
 }

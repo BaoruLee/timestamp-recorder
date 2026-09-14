@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
+<!-- 主页：底部「事件 / 时间线」双 Tab（参考 Last Time 布局），快捷「＋」按钮上移至 Tab 栏上方 -->
 <androidx.coordinatorlayout.widget.CoordinatorLayout
     xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
@@ -31,6 +32,7 @@
             android:textSize="13sp" />
     </com.google.android.material.appbar.AppBarLayout>
 
+    <!-- 内容区：事件列表 / 时间线列表（按 Tab 切换可见性） -->
     <FrameLayout
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -56,17 +58,105 @@
             android:paddingStart="16dp"
             android:paddingEnd="16dp"
             android:paddingTop="4dp"
-            android:paddingBottom="96dp"
+            android:paddingBottom="@dimen/list_bottom_padding"
             android:scrollbars="vertical" />
+
+        <TextView
+            android:id="@+id/tvEmptyTimeline"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="64dp"
+            android:gravity="center"
+            android:lineSpacingExtra="6dp"
+            android:text="@string/timeline_empty"
+            android:textColor="?attr/colorOnSurfaceVariant"
+            android:textSize="15sp"
+            android:visibility="gone" />
+
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/recyclerTimeline"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:paddingStart="16dp"
+            android:paddingEnd="16dp"
+            android:paddingTop="8dp"
+            android:paddingBottom="@dimen/list_bottom_padding"
+            android:scrollbars="vertical"
+            android:visibility="gone" />
     </FrameLayout>
 
-    <!-- 液态玻璃快捷按钮：位置可在设置页切换（左/中/右） -->
+    <!-- 底部 Tab：事件 / 时间线（高级材质三层结构：
+         bgGlass 承载实时高斯模糊背景（截取背后内容），bgDim 半透明罩统一深浅，
+         bgLiquid 高光描边层，最上层为文字与分隔线） -->
+    <FrameLayout
+        android:id="@+id/bottomBar"
+        android:layout_width="match_parent"
+        android:layout_height="@dimen/tab_bar_height"
+        android:layout_gravity="bottom">
+
+        <!-- 玻璃背景层：运行时由代码替换为截取内容的模糊位图（实时高斯模糊毛玻璃） -->
+        <View
+            android:id="@+id/bgGlass"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- 半透明罩：统一明暗玻璃色调，弱化背景内容对比 -->
+        <View
+            android:id="@+id/bgDim"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <!-- 高光描边层（液态玻璃高光边） -->
+        <View
+            android:id="@+id/bgLiquid"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@drawable/bg_liquid_bar" />
+
+        <!-- 内容层：Tab 文字与分隔线；底部 padding 由代码按导航栏高度设置，避免被手势条遮挡 -->
+        <LinearLayout
+            android:id="@+id/tabContent"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="horizontal"
+            android:paddingStart="10dp"
+            android:paddingEnd="10dp">
+
+            <TextView
+                android:id="@+id/tabEvents"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:text="@string/tab_events"
+                android:textSize="14sp" />
+
+            <View
+                android:layout_width="1dp"
+                android:layout_height="26dp"
+                android:layout_gravity="center_vertical"
+                android:background="@color/glass_stroke" />
+
+            <TextView
+                android:id="@+id/tabTimeline"
+                android:layout_width="0dp"
+                android:layout_height="match_parent"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackground"
+                android:gravity="center"
+                android:text="@string/tab_timeline"
+                android:textSize="14sp" />
+        </LinearLayout>
+    </FrameLayout>
+
+    <!-- 液态玻璃快捷按钮：位置可在设置页切换（左/中/右），上移至底部 Tab 栏上方 -->
     <ImageButton
         android:id="@+id/fabAdd"
         android:layout_width="60dp"
         android:layout_height="60dp"
         android:layout_gravity="bottom|end"
-        android:layout_margin="24dp"
         android:background="@drawable/fab_liquid"
         android:contentDescription="@string/fab_add"
         android:elevation="6dp"

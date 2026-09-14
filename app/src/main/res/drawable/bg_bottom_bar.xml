@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 底部 Tab 栏：液态玻璃（半透明渐变 + 顶部高光 + 描边），浅色模式 -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <!-- 玻璃本体：垂直半透明白色渐变 -->
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#F2FFFFFF"
+                android:centerColor="#CCFFFFFF"
+                android:endColor="#8AFFFFFF" />
+        </shape>
+    </item>
+    <!-- 顶部高光细线 -->
+    <item
+        android:insetTop="0dp"
+        android:insetLeft="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="22dp">
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="270"
+                android:startColor="#59FFFFFF"
+                android:endColor="#00FFFFFF" />
+        </shape>
+    </item>
+    <!-- 顶部描边（玻璃边缘高光） -->
+    <item
+        android:insetTop="0dp"
+        android:insetLeft="0dp"
+        android:insetRight="0dp"
+        android:insetBottom="34dp">
+        <shape android:shape="rectangle">
+            <stroke
+                android:width="1dp"
+                android:color="#33FFFFFF" />
+        </shape>
+    </item>
+</layer-list>

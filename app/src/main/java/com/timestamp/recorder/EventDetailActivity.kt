@@ -220,6 +220,7 @@ class EventDetailActivity : BaseActivity() {
         batchItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
         batchItem.setIcon(R.drawable.ic_check_box)
         menu.add(Menu.NONE, 6, 0, R.string.menu_stats)
+        menu.add(Menu.NONE, 7, 0, R.string.menu_timeline)
         return true
     }
 
@@ -232,6 +233,8 @@ class EventDetailActivity : BaseActivity() {
             5 -> enterSelectionMode()
             6 -> startActivity(Intent(this, StatsActivity::class.java)
                 .putExtra(StatsActivity.EXTRA_FOCUS_EVENT_ID, eventId))
+            7 -> startActivity(Intent(this, MainActivity::class.java)
+                .putExtra(MainActivity.EXTRA_OPEN_TIMELINE, true))
             else -> return super.onOptionsItemSelected(item)
         }
         return true

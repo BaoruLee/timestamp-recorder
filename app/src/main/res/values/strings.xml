@@ -171,4 +171,18 @@
     <string name="backup_import_confirm_title">用备份覆盖当前数据？</string>
     <string name="backup_import_confirm_msg">将覆盖现有全部数据：共 %1$d 个事件、%2$d 条记录。此操作不可撤销，建议先导出当前备份。</string>
     <string name="backup_import_confirm">覆盖恢复</string>
+
+    <!-- 时间线（按月份分组的全部记录视图） -->
+    <string name="tab_events">事件</string>
+    <string name="tab_timeline">时间线</string>
+    <string name="menu_timeline">时间线</string>
+    <string name="timeline_title">时间线</string>
+    <string name="timeline_empty">还没有任何记录\n先到主页点几下「记录」吧</string>
+    <string name="timeline_month_count">· %1$d 条</string>
+    <string name="timeline_just_now">刚刚</string>
+    <string name="timeline_minutes_ago">%1$d 分钟前</string>
+    <string name="timeline_hours_ago">%1$d 小时前</string>
+    <string name="timeline_hours_minutes_ago">%1$d 小时, %2$d 分钟前</string>
+    <string name="timeline_days_ago">%1$d 天前</string>
+    <string name="timeline_open_detail">查看该事件</string>
 </resources>

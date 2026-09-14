@@ -83,5 +83,13 @@ abstract class BaseActivity : AppCompatActivity() {
             statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
             navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
         )
+        // 关闭导航栏对比度强制（ColorOS / MIUI 等 ROM 默认会给透明导航栏加一层
+        // 半透明 scrim，导致底部出现「小白条」、手势条区域不沉浸）
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                window.isNavigationBarContrastEnforced = false
+            } catch (_: Exception) {
+            }
+        }
     }
 }
