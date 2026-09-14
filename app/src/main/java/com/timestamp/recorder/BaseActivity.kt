@@ -114,6 +114,17 @@ abstract class BaseActivity : AppCompatActivity() {
             } catch (_: Exception) {
             }
         }
+        // 挖孔屏 / 刘海屏：允许内容延伸进刘海区。之前靠 AndroidX enableEdgeToEdge 顺手设了，
+        // 改成手动沉浸后这行必须自己补 —— 不然在打孔机型上状态栏那一条会留黑边。
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.P) {
+            try {
+                window.attributes = window.attributes.apply {
+                    layoutInDisplayCutoutMode = android.view.WindowManager.LayoutParams
+                        .LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES
+                }
+            } catch (_: Exception) {
+            }
+        }
         // 图标配色：日间要深色（顶栏是浅玻璃，白图标会完全看不见），夜间要浅色
         WindowCompat.getInsetsController(window, window.decorView)?.apply {
             isAppearanceLightStatusBars = !night

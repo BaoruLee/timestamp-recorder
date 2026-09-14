@@ -285,6 +285,17 @@ class MainActivity : BaseActivity() {
                 lp.fitInsetsTypes = 0
                 lp.fitInsetsSides = 0
             }
+            // 状态栏图标配色「多管齐下」（不同 ROM 听不同的 API，全写上，谁认谁生效）：
+            // lp.systemUiVisibility（部分 ROM 按 LayoutParams 上色）+ post 里的
+            // InsetsController 和 decorView.systemUiVisibility。HyperOS 上都不认（已知取舍），
+            // 但原生 / 其他 ROM 认 LayoutParams 这条路 —— 写上不吃亏。
+            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                    Configuration.UI_MODE_NIGHT_YES
+            if (!night) {
+                @Suppress("DEPRECATION")
+                lp.systemUiVisibility =
+                    lp.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            }
             w.attributes = lp
             SystemBlur.attach(
                 dlg,
