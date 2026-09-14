@@ -34,15 +34,29 @@
             android:id="@+id/appBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@color/glass_toolbar"
+            android:background="@drawable/bg_top_bar"
             app:elevation="0dp">
 
             <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?attr/actionBarSize"
+                app:contentInsetEnd="4dp"
                 app:title="@string/main_title"
-                app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge" />
+                app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge">
+
+                <!-- 「⋮」用自定义按钮而不是 options menu：这样点它弹的是我们那块玻璃菜单，
+                     位置也完全可控（系统 PopupMenu 的样式和定位都跟这套玻璃语言不搭）。 -->
+                <ImageButton
+                    android:id="@+id/btnMore"
+                    android:layout_width="44dp"
+                    android:layout_height="44dp"
+                    android:layout_gravity="end|center_vertical"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/menu_more"
+                    android:scaleType="center"
+                    android:src="@drawable/ic_more_vert" />
+            </com.google.android.material.appbar.MaterialToolbar>
 
             <TextView
                 android:id="@+id/tvSubtitle"
@@ -145,30 +159,56 @@
             android:paddingStart="8dp"
             android:paddingEnd="8dp">
 
-            <!-- 与独立窗口版（view_bottom_nav.xml）保持一致：图标 + 文字，tint 由 setTabLook 控制 -->
-            <TextView
+            <!-- 与独立窗口版（view_bottom_nav.xml）保持完全一致的结构与 id -->
+            <LinearLayout
                 android:id="@+id/tabEvents"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:drawableStart="@drawable/ic_tab_events"
-                android:drawablePadding="6dp"
-                android:drawableTint="?attr/colorOnSurfaceVariant"
                 android:gravity="center"
-                android:text="@string/tab_events"
-                android:textSize="15sp" />
+                android:orientation="horizontal">
 
-            <TextView
+                <ImageView
+                    android:id="@+id/iconEvents"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@null"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_tab_events" />
+
+                <TextView
+                    android:id="@+id/textEvents"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="7dp"
+                    android:text="@string/tab_events"
+                    android:textSize="15sp" />
+            </LinearLayout>
+
+            <LinearLayout
                 android:id="@+id/tabTimeline"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
-                android:drawableStart="@drawable/ic_tab_timeline"
-                android:drawablePadding="6dp"
-                android:drawableTint="?attr/colorOnSurfaceVariant"
                 android:gravity="center"
-                android:text="@string/tab_timeline"
-                android:textSize="15sp" />
+                android:orientation="horizontal">
+
+                <ImageView
+                    android:id="@+id/iconTimeline"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:contentDescription="@null"
+                    android:scaleType="fitCenter"
+                    android:src="@drawable/ic_tab_timeline" />
+
+                <TextView
+                    android:id="@+id/textTimeline"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="7dp"
+                    android:text="@string/tab_timeline"
+                    android:textSize="15sp" />
+            </LinearLayout>
         </LinearLayout>
     </FrameLayout>
 </FrameLayout>

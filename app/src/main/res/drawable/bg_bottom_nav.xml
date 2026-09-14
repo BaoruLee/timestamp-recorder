@@ -1,24 +1,30 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 底栏胶囊岛的静态玻璃背景（API < 33 没有 AGSL shader 时用它兜底；
-     有 shader 时 MainActivity 会把这个背景置空，玻璃交给 shader 实时画）。
-     圆角 = 28dp = 岛高 56dp 的一半，所以是完整胶囊。 -->
+<!-- 底栏胶囊岛的玻璃背景（窗口背景）。
+     圆角 = 28dp = 岛高 56dp 的一半，所以是完整胶囊。
+
+     ⚠️ 白天这层**必须够透**（这里 ~70%~80%）：系统级 background blur 是画在**窗口背景之下**的，
+     之前用 95%~90% 的近白把模糊整个盖住了 —— 看着就跟"没模糊"一样（夜间版本是 #B3~#D9，
+     透得多，所以深色模式反而看得见）。透出来之后，「背后的内容被糊过」才成立。
+
+     ⚠️ 描边不能再用白色（#40FFFFFF）：浅色背景上的白描边等于没有，胶囊"没有轮廓"。
+     改成淡淡的冷灰蓝，白底上也一眼能看出边界。 -->
 <layer-list xmlns:android="http://schemas.android.com/apk/res/android">
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="28dp" />
             <gradient
                 android:angle="270"
-                android:startColor="#F2FFFFFF"
-                android:endColor="#E6FFFFFF" />
+                android:startColor="#B3FFFFFF"
+                android:endColor="#CCFFFFFF" />
         </shape>
     </item>
-    <!-- 玻璃边缘一圈细高光（胶囊的"厚度感"） -->
+    <!-- 玻璃边缘一圈细描边 -->
     <item>
         <shape android:shape="rectangle">
             <corners android:radius="28dp" />
             <stroke
                 android:width="1dp"
-                android:color="#40FFFFFF" />
+                android:color="#3D5B6B8C" />
         </shape>
     </item>
 </layer-list>

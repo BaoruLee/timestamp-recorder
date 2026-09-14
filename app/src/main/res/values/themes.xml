@@ -32,5 +32,7 @@
         <item name="android:windowAnimationStyle">@null</item>
         <item name="android:windowMinWidthMajor">1%</item>
         <item name="android:windowMinWidthMinor">1%</item>
+        <!-- 这扇窗会盖住状态栏，所以状态栏图标配色由它说了算：浅色玻璃上必须是深色图标 -->
+        <item name="android:windowLightStatusBar">true</item>
     </style>
 </resources>

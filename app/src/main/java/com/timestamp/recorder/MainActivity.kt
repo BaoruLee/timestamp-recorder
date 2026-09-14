@@ -12,13 +12,12 @@ import android.os.Build
 import android.os.Bundle
 import android.view.Gravity
 import android.view.LayoutInflater
-import android.view.Menu
-import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.view.ViewTreeObserver
 import android.view.animation.DecelerateInterpolator
+import android.widget.ImageView
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -195,11 +194,11 @@ class MainActivity : BaseActivity() {
                 buildIslandWindow()
             } else {
                 binding.bottomBar.visibility = View.VISIBLE
-                tabEventsRef = binding.tabEvents
-                tabTimelineRef = binding.tabTimeline
+                tabEventsRef = layoutTabEvents
+                tabTimelineRef = layoutTabTimeline
             }
-            tabEventsRef?.setOnClickListener { selectTab(TAB_EVENTS) }
-            tabTimelineRef?.setOnClickListener { selectTab(TAB_TIMELINE) }
+            tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
+            tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
         }
         applyBarLayout(navInsetPx)
         styleTab()
@@ -223,6 +222,15 @@ class MainActivity : BaseActivity() {
      * 与原来的 options menu 共用一套逻辑。
      */
     private fun syncTopBar() {
+        // 顶栏形态：系统能给模糊就搬进独立窗口（真·实时模糊，且能罩住状态栏）；
+        // 给不了就用布局内的 AppBar（静态半透明玻璃）。
+        //
+        // ⚠️ 已知代价（主人权衡后选择保留模糊）：这扇独立窗口会变成「最上层应用窗口」，
+        //    状态栏图标按它上色，而它必须 NOT_FOCUSABLE → appearance 设不进去
+        //    （InsetsController / LayoutParams.systemUiVisibility / decorView.systemUiVisibility
+        //     三种写法全试过都无效），于是浅色模式下状态栏时间是白色的。
+        //    实测：有这扇窗时间区深色 0%，没有 39%。**状态栏与模糊在这台 ROM 上互斥**，
+        //    目前按主人要求优先保留模糊。
         val want = if (SystemBlur.isUsable(this)) MODE_WINDOW_BLUR else MODE_STATIC
         if (want != topBarMode) {
             topBarMode = want
@@ -232,6 +240,8 @@ class MainActivity : BaseActivity() {
                 buildTopBarWindow()
             } else {
                 binding.appBar.visibility = View.VISIBLE
+                // 布局内形态也要有「⋮」—— 而且同样弹我们那块玻璃菜单
+                binding.btnMore.setOnClickListener { showOverflowMenu(it) }
             }
         }
         applyTopBarInsets()
@@ -249,11 +259,16 @@ class MainActivity : BaseActivity() {
         dlg.window?.let { w ->
             w.setDimAmount(0f)
             w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            // ⚠️ 试过改成 TYPE_APPLICATION_PANEL（子窗口不参与系统栏配色，能让状态栏黑化），
+            //    但 PANEL 是**子窗口**，必须带 Activity 的 window token，Dialog 拿不到 →
+            //    直接抛 BadTokenException，App 打不开。只能维持 TYPE_APPLICATION。
             // 不吃焦点、不拦截窗口外的触摸；要让这扇窗真正顶到屏幕最上（含状态栏），
             // 只靠 LAYOUT_IN_SCREEN 不够 —— 系统仍会把 TYPE_APPLICATION 摆到「应用可用区」里
             // （实测 frame=[0,169]…，状态栏那 169px 罩不住），必须再给 LAYOUT_NO_LIMITS。
             // ⚠️ NO_LIMITS 只在**显式给了宽高 + floating** 时才安全：否则窗口会退化成整屏
             //    （既整屏被模糊、又挡掉所有触摸，踩过）。
+            // LAYOUT_IN_SCREEN + NO_LIMITS 缺一不可：少了它们窗口会被摆在「应用可用区」里，
+            // 顶不到 y=0，状态栏那一条就罩不住（栏会掉到状态栏下面，观感退步）。
             w.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -279,6 +294,25 @@ class MainActivity : BaseActivity() {
         }
         dlg.show()
         topBarDialog = dlg
+        // ⚠️ 这扇窗盖住了状态栏，于是**状态栏图标按"它的" appearance 来画**，
+        //    主 Activity 那边的设置会被它盖掉（实测：把这扇窗去掉后状态栏立刻正常黑化，
+        //    开着它就变全白 —— 时间文字与背景同为 250，等于隐形）。
+        //    所以这里也必须点亮，而且要等窗口真正 attach 之后（show() 刚返回时设不算数）。
+        dlg.window?.let { w ->
+            w.statusBarColor = Color.TRANSPARENT
+            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                    Configuration.UI_MODE_NIGHT_YES
+            w.decorView.post {
+                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
+                    ?.isAppearanceLightStatusBars = !night
+                if (!night) {
+                    // 旧 API 兜底：直接写 decorView 的 flag，绕过 InsetsController
+                    @Suppress("DEPRECATION")
+                    w.decorView.systemUiVisibility =
+                        w.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                }
+            }
+        }
         // 布局完成后再算实际高度（那一刻 insets / 测量才可靠）
         dlg.window?.decorView?.post { applyTopBarInsets() }
         // 每次布局完都对一次：show() 刚返回时窗口还没测量（量到的高度偏小），列表留白会算少，
@@ -356,10 +390,12 @@ class MainActivity : BaseActivity() {
         }
     }
 
-    /** 退出玻璃顶栏（如系统关掉高级材质）时，把列表留白还回布局里原本的值 */
+    /** 退出玻璃顶栏（如系统关掉高级材质）时，把列表留白还回布局里原本的值。
+     *  ⚠️ 时间线的顶部留白**永远为 0**：起笔（Cap）负责把彩色线顶到「当前顶端」，
+     *  留白会在顶端留出一截没颜色的空档（两种顶栏形态下都一样）。 */
     private fun restoreTopPadding() {
         binding.recyclerEvents.applyTopPadding(origListTopPadding)
-        binding.recyclerTimeline.applyTopPadding(origListTopPadding)
+        binding.recyclerTimeline.applyTopPadding(0)
         applyEmptyTopPadding(origEmptyTopMargin)
     }
 
@@ -436,10 +472,15 @@ class MainActivity : BaseActivity() {
             w.setDimAmount(0f)
             w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
             // 不吃焦点、不拦窗口外的触摸；WATCH_OUTSIDE_TOUCH 让「点空白处」也能收起菜单
+            // ⚠️ LAYOUT_IN_SCREEN 不能少：少了它，窗口被限制在「应用可用区」里，
+            //    于是 lp.y 被当成「内容区坐标」—— 设 y=365，实际却被摆到 534
+            //    （正好多一条 169px 的状态栏），菜单就凭空往下掉了一截。
+            //    顶部玻璃栏那扇窗一直有这个 flag，所以只有菜单踩到。
             w.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                     or android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                    or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
                     or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             )
             // 模糊区域由「窗口背景」推导，所以这块可见的玻璃必须给到窗口上（内容本身不带背景）
@@ -452,10 +493,21 @@ class MainActivity : BaseActivity() {
             }
             w.setGravity(Gravity.TOP or Gravity.START)
             val lp = w.attributes
-            lp.width = android.view.WindowManager.LayoutParams.WRAP_CONTENT
+            // ⚠️ 宽度必须显式给像素，不能靠布局里的 layout_width：
+            //    `Dialog.setContentView(View)` 会把这个 View 挂到 decor 的 FrameLayout 下，
+            //    LinearLayout 的 LayoutParams 不兼容 → 被换成 wrap_content，188dp 直接失效
+            //    （实测菜单只有 144dp 宽）。
+            lp.width = menuW
             lp.height = android.view.WindowManager.LayoutParams.WRAP_CONTENT
             lp.x = x
             lp.y = y
+            // ⚠️ 和顶部玻璃栏同一个坑：浮动窗口默认会按状态栏再内缩一次 ——
+            //    设了 y=365，实际 frame 却被推到 534（差的正是 169px 状态栏高度），
+            //    于是菜单凭空往下掉了一整条状态栏，看着就跟按钮"离得太远"。
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                lp.fitInsetsTypes = 0
+                lp.fitInsetsSides = 0
+            }
             w.attributes = lp
         }
 
@@ -542,10 +594,18 @@ class MainActivity : BaseActivity() {
         dlg.setCancelable(false)
         dlg.setCanceledOnTouchOutside(false)
 
-        tabEventsRef = content.findViewById(R.id.tabEvents)
-        tabTimelineRef = content.findViewById(R.id.tabTimeline)
-        tabEventsRef?.setOnClickListener { selectTab(TAB_EVENTS) }
-        tabTimelineRef?.setOnClickListener { selectTab(TAB_TIMELINE) }
+        tabEventsRef = TabViews(
+            content.findViewById(R.id.tabEvents),
+            content.findViewById(R.id.iconEvents),
+            content.findViewById(R.id.textEvents)
+        )
+        tabTimelineRef = TabViews(
+            content.findViewById(R.id.tabTimeline),
+            content.findViewById(R.id.iconTimeline),
+            content.findViewById(R.id.textTimeline)
+        )
+        tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
+        tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
 
         dlg.window?.let { w ->
             w.setDimAmount(0f)
@@ -561,6 +621,19 @@ class MainActivity : BaseActivity() {
                 resources.getDimensionPixelSize(R.dimen.glass_blur_radius),
                 resources.getDrawable(R.drawable.bg_bottom_nav, theme)
             )
+            // 这扇窗是「最上层应用窗口」，状态栏图标按它上色 —— 所以这里也要点亮，
+            // 否则状态栏时间会变纯白、在浅色顶栏上完全看不见。
+            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                    Configuration.UI_MODE_NIGHT_YES
+            if (!night) {
+                val lp = w.attributes
+                @Suppress("DEPRECATION")
+                lp.systemUiVisibility =
+                    lp.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+                w.attributes = lp
+                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
+                    ?.isAppearanceLightStatusBars = true
+            }
         }
         dlg.show()
         glassDialog = dlg
@@ -615,9 +688,20 @@ class MainActivity : BaseActivity() {
 
     private var navInsetPx = 0
 
-    /** 当前生效的两个 Tab 文本视图 */
-    private var tabEventsRef: TextView? = null
-    private var tabTimelineRef: TextView? = null
+    /** 一个 Tab 的三件套：容器（承载选中态的玻璃胶囊）、图标、文字 */
+    private class TabViews(val root: View, val icon: ImageView, val text: TextView)
+
+    /** 布局内（静态底栏）的两个 Tab —— 从玻璃窗口切回来时要还原成它们 */
+    private val layoutTabEvents: TabViews by lazy {
+        TabViews(binding.tabEvents, binding.iconEvents, binding.textEvents)
+    }
+    private val layoutTabTimeline: TabViews by lazy {
+        TabViews(binding.tabTimeline, binding.iconTimeline, binding.textTimeline)
+    }
+
+    /** 当前生效的两个 Tab（可能在布局里，也可能在玻璃窗口里） */
+    private var tabEventsRef: TabViews? = null
+    private var tabTimelineRef: TabViews? = null
 
     /** 当前底部栏实测高度（= 内容高 + 导航栏 inset），FAB 据此上移 */
     private var barHeightPx = 0
@@ -649,16 +733,24 @@ class MainActivity : BaseActivity() {
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
         if (hasFocus) {
-            // 手势条（小白条）融入玻璃：深色模式下强制深色 pill（融入深色玻璃，彻底沉浸）
+            // 系统栏图标配色，按当前深浅色**强制**定死，不吃 ROM 默认值：
+            // - 状态栏：顶栏是浅色玻璃，浅色模式下图标必须转深（否则白图标糊在浅玻璃上看不见）；
+            // - 手势条：深色模式下强制深色 pill，融入深色玻璃，彻底沉浸。
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                         Configuration.UI_MODE_NIGHT_YES
-                val appear = if (night) {
+                val navAppear = if (night) {
                     android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
                 } else 0
+                val statusAppear = if (night) {
+                    0
+                } else {
+                    android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                }
                 window.insetsController?.setSystemBarsAppearance(
-                    appear,
-                    android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS)
+                    navAppear or statusAppear,
+                    android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS
+                        or android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS)
             }
             // 窗口 insets 在此后才完全就绪：强制应用一次沉浸布局
             val insets = androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
@@ -719,41 +811,45 @@ class MainActivity : BaseActivity() {
         updateVisibility()
     }
 
-    /** 选中 Tab = 主题色胶囊高亮 + 加粗；未选中 = 透明 + 次要色。
+    /** 选中 Tab = 玻璃胶囊高亮；未选中 = 透明 + 次要色。
      *  底栏可能在布局内、也可能在独立窗口里，这里统一取当前生效的那个。 */
     private fun styleTab() {
         val eventsSelected = currentTab == TAB_EVENTS
-        setTabLook(tabEventsRef ?: binding.tabEvents, eventsSelected)
-        setTabLook(tabTimelineRef ?: binding.tabTimeline, !eventsSelected)
+        val ev = tabEventsRef ?: layoutTabEvents
+        val tl = tabTimelineRef ?: layoutTabTimeline
+        setTabLook(ev, eventsSelected)
+        setTabLook(tl, !eventsSelected)
     }
 
     /**
-     * 选中 Tab = 一块**大圆角玻璃胶囊**（只在玻璃上加一档白微光，不做彩色填充）
-     * + 近白文字；未选中 = 纯文字、次要色。对齐参考图那种「玻璃里有块玻璃」的观感。
-     * 胶囊左右各内缩 8dp，视觉上不贴边。
+     * 选中 Tab = 一块**内嵌玻璃胶囊**（半透明填充 + 一圈描边，把"轮廓"交代清楚）
+     * + 高对比文字与图标；未选中 = 透明底 + 次要色。
+     * 胶囊左右各内缩 4dp、上下 8dp，视觉上不贴边。
      */
-    private fun setTabLook(tv: TextView, selected: Boolean) {
+    private fun setTabLook(tab: TabViews, selected: Boolean) {
         val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                 Configuration.UI_MODE_NIGHT_YES
         if (selected) {
-            // 岛内的选中态 = 一块内嵌胶囊（左右 4dp、上下 8dp 内缩，半径 20dp）
+            // 岛内的选中态 = 一块内嵌胶囊。白天在浅玻璃上「白上加白」几乎看不出边界，
+            // 所以补一圈淡淡的冷色描边（夜间用白描边），轮廓一眼可辨。
             val insetH = resources.getDimensionPixelSize(R.dimen.space_1)
             val insetV = resources.getDimensionPixelSize(R.dimen.space_2)
-            val fill = if (night) 0x24FFFFFF else 0x18000000
-            tv.background = android.graphics.drawable.InsetDrawable(
+            val fill = if (night) 0x2EFFFFFF else 0x1F000000
+            val stroke = if (night) 0x33FFFFFF else 0x2E5B6B8C
+            tab.root.background = android.graphics.drawable.InsetDrawable(
                 GradientDrawable().apply {
                     cornerRadius = resources.getDimensionPixelSize(R.dimen.radius_lg).toFloat()
                     setColor(fill)
+                    setStroke(resources.getDimensionPixelSize(R.dimen.space_1) / 4, stroke)
                 }, insetH, insetV, insetH, insetV
             )
-            val text = if (night) 0xFFEDEAF3.toInt() else 0xFF16181C.toInt()
-            tv.setTextColor(text)
-            // 图标跟文字同色：选中 = 近白/近黑，未选中 = 次要色（tint 走 compound drawable）
-            tv.compoundDrawableTintList = ColorStateList.valueOf(text)
+            val content = if (night) 0xFFEDEAF3.toInt() else 0xFF16181C.toInt()
+            tab.text.setTextColor(content)
+            tab.icon.imageTintList = ColorStateList.valueOf(content)
         } else {
-            tv.background = null
-            tv.setTextColor(tabOnSurfaceVariant)
-            tv.compoundDrawableTintList = ColorStateList.valueOf(tabOnSurfaceVariant)
+            tab.root.background = null
+            tab.text.setTextColor(tabOnSurfaceVariant)
+            tab.icon.imageTintList = ColorStateList.valueOf(tabOnSurfaceVariant)
         }
     }
 
@@ -772,16 +868,8 @@ class MainActivity : BaseActivity() {
     }
 
     // ---------- 菜单（设置 + 统计 + 教程；时间线走底部 Tab） ----------
-
-    override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.menu_settings)
-        menu.add(Menu.NONE, MENU_STATS, 0, R.string.menu_stats)
-        menu.add(Menu.NONE, MENU_TUTORIAL, 0, R.string.menu_tutorial)
-        return true
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean =
-        handleMenuAction(item.itemId) || super.onOptionsItemSelected(item)
+    // ⚠️ 不再注册 options menu：那会在工具栏上多出一颗系统样式的「⋮」（跟自定义按钮重复，
+    //    关掉高级材质时两个 ⋮ 并排出现）。统一走 showOverflowMenu() 的玻璃菜单。
 
     private fun refresh() {
         dragEnabled = currentSortMode() == SettingsActivity.SORT_MANUAL
@@ -1026,8 +1114,14 @@ class MainActivity : BaseActivity() {
         inner class CapVH(private val b: ItemTimelineCapBinding) : RecyclerView.ViewHolder(b.root) {
             fun bind(item: TimelineItem.Cap, position: Int) {
                 b.root.layoutParams = b.root.layoutParams.apply {
+                    // 起笔高度跟顶栏形态走：独立玻璃窗口罩着屏幕顶端时要够高才能从玻璃下穿出来；
+                    // 静态 AppBar 那种情况 AppBar 自己已占着顶端，起笔只需一小段把线接上。
                     height = resources.getDimensionPixelSize(
-                        if (item.head) R.dimen.timeline_head_height else R.dimen.timeline_tail_height
+                        when {
+                            !item.head -> R.dimen.timeline_tail_height
+                            topBarMode == MODE_WINDOW_BLUR -> R.dimen.timeline_head_height
+                            else -> R.dimen.timeline_head_height_static
+                        }
                     )
                 }
                 b.vLine.setLine(

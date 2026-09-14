@@ -1,14 +1,14 @@
 package com.timestamp.recorder
 
 import android.content.Intent
+import android.content.res.Configuration
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.widget.Toast
-import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.updatePadding
 import com.google.android.material.appbar.MaterialToolbar
@@ -86,6 +86,48 @@ abstract class BaseActivity : AppCompatActivity() {
     private var scrollBaseBottom = -1
 
     /**
+     * 沉浸式：状态栏 / 导航栏透明（通杀各品牌，含小米 HyperOS 手势条）。
+     *
+     * ⚠️ **这里刻意不用 AndroidX 的 `enableEdgeToEdge(statusBarStyle = ...)`**：
+     * 1. `SystemBarStyle.auto(TRANSPARENT, TRANSPARENT)` 是靠 **scrim 亮度**判断要不要点亮
+     *    `APPEARANCE_LIGHT_STATUS_BARS` 的，全透明亮度为 0 → 判定"背景不亮" → 不点亮；
+     * 2. 换成 `light(...)` / `dark(...)` 也**依然无效**（实测时间仍是纯白、与背景同色 250）；
+     * 3. 它内部会注册一个 `EdgeToEdgeCallback`，**每次分发 insets 都重设一次** appearance，
+     *    于是事后手动设的、主题里的 `windowLightStatusBar` 全都会被它冲掉。
+     *
+     * 结论：绕开它，**自己手动搭沉浸**（`setDecorFitsSystemWindows(false)` + 两条栏刷透明 +
+     * 关对比度强制），再用 `WindowCompat.getInsetsController` 直接点亮 appearance ——
+     * 没有那个会自我覆盖的 callback，设了就生效。
+     */
+    private fun applyEdgeToEdge() {
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES
+        // 沉浸：内容铺到系统栏底下
+        WindowCompat.setDecorFitsSystemWindows(window, false)
+        window.statusBarColor = android.graphics.Color.TRANSPARENT
+        window.navigationBarColor = android.graphics.Color.TRANSPARENT
+        // 关掉对比度强制：否则透明的两条栏会被 ROM 糊上一层 scrim（底部小白条就是这么来的）
+        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
+            try {
+                window.isStatusBarContrastEnforced = false
+                window.isNavigationBarContrastEnforced = false
+            } catch (_: Exception) {
+            }
+        }
+        // 图标配色：日间要深色（顶栏是浅玻璃，白图标会完全看不见），夜间要浅色
+        WindowCompat.getInsetsController(window, window.decorView)?.apply {
+            isAppearanceLightStatusBars = !night
+            isAppearanceLightNavigationBars = !night
+        }
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+        // 用户切了深浅色：StatusBarStyle 是"固定 light / 固定 dark"的，得重设一次
+        applyEdgeToEdge()
+    }
+
+    /**
      * 用系统浏览器打开外链。
      *
      * App 自身不申请 INTERNET 权限，联网由系统浏览器负责——保持「零权限」。
@@ -102,18 +144,6 @@ abstract class BaseActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
-        // 沉浸式：状态栏 / 导航栏透明（通杀各品牌，含小米 HyperOS 手势条）
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
-        )
-        // 关闭导航栏对比度强制（ColorOS / MIUI 等 ROM 默认会给透明导航栏加一层
-        // 半透明 scrim，导致底部出现「小白条」、手势条区域不沉浸）
-        if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.Q) {
-            try {
-                window.isNavigationBarContrastEnforced = false
-            } catch (_: Exception) {
-            }
-        }
+        applyEdgeToEdge()
     }
 }

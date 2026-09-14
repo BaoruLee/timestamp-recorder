@@ -29,7 +29,11 @@
     <dimen name="timeline_line_inset">26dp</dimen>
     <!-- 起笔 / 收笔（两头有颜色的那两段空行）：起笔要高过顶部工具栏，颜色才顶得到屏幕顶端；
          收笔要盖住列表底部原本的留白（list_bottom_padding），这样拉到底也不会「有一截没上色」。 -->
-    <dimen name="timeline_head_height">132dp</dimen>
+    <!-- 起笔高度：只要够穿过顶栏（状态栏 45 + 工具栏 56 ≈ 101dp）再留一点呼吸即可。
+         之前给 132dp，第一个月份标题被压到顶栏下沿再往下 31dp，看着"最上面太靠下"。 -->
+    <dimen name="timeline_head_height">108dp</dimen>
+    <!-- 静态顶栏（无独立窗口）时，AppBar 自己就占着屏幕顶端，起笔只要短短一段接上线即可 -->
+    <dimen name="timeline_head_height_static">12dp</dimen>
     <dimen name="timeline_tail_height">236dp</dimen>
 
     <!-- 顶部工具栏（独立玻璃窗口版）高度 -->
