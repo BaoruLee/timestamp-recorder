@@ -122,9 +122,10 @@ class MainActivity : BaseActivity() {
             (pageEvents.tvEmpty.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         applyFabPosition()
         setupBottomBar()
-        setupBlurViews()
+        setupInLayoutGlass()
         styleTab()
-        // 状态栏配色由 Activity 主窗口控制（BlurView 版不再有独立窗口干扰）
+        // 状态栏配色由 Activity 主窗口控制；独立玻璃窗口只在深色模式启用（useWindowGlass），
+        // 浅色模式不建任何浮窗 → 黑化永不被夺。
         updateStatusBarAppearance()
         // 若从详情页菜单直达时间线 Tab，需在渲染后生效
         if (intent.getBooleanExtra(EXTRA_OPEN_TIMELINE, false)) {
@@ -181,30 +182,30 @@ class MainActivity : BaseActivity() {
      * - bottomBar 高度 = 64dp + 导航栏 inset，一直铺到屏幕最底，系统手势条浮在玻璃之上；
      * - Tab 内容层按导航栏高度加底部 padding，文字绝不被手势条遮挡。
      */
-    /** 初始化 BlurView：顶部额头和底部岛的实时背后模糊 */
-    private fun setupBlurViews() {
-        val radius = 25f
-        val blurAlgorithm = if (android.os.Build.VERSION.SDK_INT >= 31) {
+    /** 布局内玻璃（浅色模式 / 系统不支持高级材质时的形态）：
+     *  topBlur / bottomBar 用 BlurView 截屏式实时模糊 —— 不建任何浮窗，黑化不受影响。
+     *  ⚠️ 参数调优：截屏式高斯的扩散感弱于系统合成器，半径取 glass_blur_radius 的 2 倍补偿；
+     *  不再叠加 setOverlayColor（bg_top_bar / bg_bottom_nav 自带半透明底色，双 overlay 会发灰）；
+     *  bottomBar 补 clipToOutline —— 模糊层按圆角裁切，修掉 tab 栏方形模糊框。 */
+    private fun setupInLayoutGlass() {
+        val radiusPx = resources.getDimensionPixelSize(R.dimen.glass_blur_radius) * 2
+        binding.topBlur.setBackgroundResource(R.drawable.bg_top_bar)
+        val blurAlgorithm = if (Build.VERSION.SDK_INT >= 31) {
             eightbitlab.com.blurview.RenderEffectBlur()
         } else {
             eightbitlab.com.blurview.RenderScriptBlur(this)
         }
-        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                Configuration.UI_MODE_NIGHT_YES
-        val overlay = if (night) 0x44000000.toInt() else 0x44FFFFFF.toInt()
         try {
             binding.topBlur.setupWith(binding.root, blurAlgorithm)
-                .setBlurRadius(radius)
+                .setBlurRadius(radiusPx.toFloat())
                 .setBlurAutoUpdate(true)
-                .setOverlayColor(overlay)
-        } catch (_: Throwable) { }
-        try {
             binding.bottomBar.setupWith(binding.root, blurAlgorithm)
-                .setBlurRadius(radius)
+                .setBlurRadius(radiusPx.toFloat())
                 .setBlurAutoUpdate(true)
-                .setOverlayColor(overlay)
+            binding.bottomBar.clipToOutline = true
+            binding.bottomBar.outlineProvider = android.view.ViewOutlineProvider.BACKGROUND
         } catch (_: Throwable) { }
-        // 顶部 BlurView 高度匹配 AppBar（含状态栏区域）
+        // 顶部玻璃底高度匹配 AppBar（含状态栏区域）
         binding.appBar.viewTreeObserver.addOnGlobalLayoutListener(object :
             android.view.ViewTreeObserver.OnGlobalLayoutListener {
             override fun onGlobalLayout() {
@@ -273,16 +274,40 @@ class MainActivity : BaseActivity() {
      *
      * 因为「高级材质」是**系统设置**，用户可能在我们退到后台时改，所以 onResume 会再调一次。
      */
+    /** 真·高级材质（独立 PANEL 窗口 + 系统模糊）只在**深色模式**启用：
+     *  深色模式下状态栏白图标本就是正常态，浮窗夺走 appearance 无副作用；
+     *  浅色模式必须保住黑化 —— AOSP 实验铁证：**任意浮窗无论 type / 屏幕位置 / 是否可聚焦，
+     *  都会夺走状态栏 appearance 且无法点亮**，浅色模式有浮窗 = 白图标压浅玻璃隐形。 */
+    private fun useWindowGlass(): Boolean =
+        SystemBlur.isUsable(this) &&
+        resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES
+
     private fun syncBarMode() {
         syncTopBar()
-        // BlurView 重构版：始终用布局内 BlurView 做实时模糊，不创建独立窗口
-        binding.bottomBar.visibility = View.VISIBLE
-        tabEventsRef = layoutTabEvents
-        tabTimelineRef = layoutTabTimeline
-        bindSlider(binding.tabSlider)
-        tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
-        tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
-        barMode = MODE_STATIC
+        if (useWindowGlass()) {
+            // 深色模式真·高级材质：胶囊岛放进独立 PANEL 子窗口，模糊交给系统合成器（老版质感标杆）
+            if (barMode != MODE_WINDOW_BLUR || glassDialog == null) {
+                removeIslandWindow()
+                binding.bottomBar.visibility = View.GONE
+                buildIslandWindow() // 内部绑定窗口内 Tab / 滑块并 styleTab
+                barMode = MODE_WINDOW_BLUR
+            } else {
+                applyIslandWindowLayout()
+            }
+        } else {
+            // 浅色模式 / 系统不支持：布局内的半透明胶囊 + BlurView 截屏模糊（黑化不受影响）
+            if (barMode != MODE_STATIC) {
+                removeIslandWindow()
+                binding.bottomBar.visibility = View.VISIBLE
+                tabEventsRef = layoutTabEvents
+                tabTimelineRef = layoutTabTimeline
+                bindSlider(binding.tabSlider)
+                tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
+                tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
+                barMode = MODE_STATIC
+            }
+        }
         applyBarLayout(navInsetPx)
         styleTab()
     }
@@ -305,11 +330,29 @@ class MainActivity : BaseActivity() {
      * 与原来的 options menu 共用一套逻辑。
      */
     private fun syncTopBar() {
-        // BlurView 重构版：始终用布局内 AppBar + topBlur 做实时模糊
-        binding.appBar.visibility = View.VISIBLE
-        binding.btnMore.setOnClickListener { showOverflowMenu(it) }
-        topBarMode = MODE_STATIC
-        applyTopBarInsets()
+        if (useWindowGlass()) {
+            // 深色模式真·高级材质：收起布局内 AppBar / 玻璃底，顶部额头交给独立 PANEL 子窗口，
+            // 列表从玻璃底下穿过（滚动穿行 = 老版标杆观感），模糊由系统合成器实时完成
+            if (topBarMode != MODE_WINDOW_BLUR || topBarDialog == null) {
+                dismissTopBar()
+                binding.appBar.visibility = View.GONE
+                binding.topBlur.visibility = View.GONE
+                buildTopBarWindow() // PANEL + Activity token（深色模式白图标本就是正常态）
+                topBarMode = MODE_WINDOW_BLUR
+            } else {
+                applyTopBarInsets()
+            }
+        } else {
+            // 浅色模式 / 系统不支持：布局内玻璃（BlurView 截屏模糊，黑化不受任何影响）
+            if (topBarMode != MODE_STATIC) {
+                dismissTopBar()
+                binding.appBar.visibility = View.VISIBLE
+                binding.topBlur.visibility = View.VISIBLE
+                binding.btnMore.setOnClickListener { showOverflowMenu(it) }
+                topBarMode = MODE_STATIC
+            }
+            applyTopBarInsets() // MODE_STATIC 分支内部会 restoreTopPadding
+        }
     }
 
     private fun buildTopBarWindow() {
