@@ -101,6 +101,13 @@ class MainActivity : BaseActivity() {
         binding.recyclerTimeline.adapter = timelineAdapter
 
         binding.fabAdd.setOnClickListener { showEditDialog(null) }
+        // 时间线列表不留底部留白：「收笔」那一段自己负责盖住底部（否则收到最后一屏会有一截没上色）
+        binding.recyclerTimeline.setPadding(
+            binding.recyclerTimeline.paddingLeft,
+            binding.recyclerTimeline.paddingTop,
+            binding.recyclerTimeline.paddingRight,
+            0
+        )
         // 记下布局里原本的留白：顶部玻璃栏开启 / 关闭时要来回切换
         origListTopPadding = binding.recyclerEvents.paddingTop
         origEmptyTopMargin =
@@ -239,11 +246,16 @@ class MainActivity : BaseActivity() {
         dlg.window?.let { w ->
             w.setDimAmount(0f)
             w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            // 不吃焦点、不拦截窗口外的触摸；LAYOUT_IN_SCREEN 才能从屏幕最顶端（含状态栏）垂下来
+            // 不吃焦点、不拦截窗口外的触摸；要让这扇窗真正顶到屏幕最上（含状态栏），
+            // 只靠 LAYOUT_IN_SCREEN 不够 —— 系统仍会把 TYPE_APPLICATION 摆到「应用可用区」里
+            // （实测 frame=[0,169]…，状态栏那 169px 罩不住），必须再给 LAYOUT_NO_LIMITS。
+            // ⚠️ NO_LIMITS 只在**显式给了宽高 + floating** 时才安全：否则窗口会退化成整屏
+            //    （既整屏被模糊、又挡掉所有触摸，踩过）。
             w.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
                     or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+                    or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
             )
             w.setGravity(Gravity.TOP)
             val lp = w.attributes
