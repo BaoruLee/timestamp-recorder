@@ -17,5 +17,7 @@ class AboutActivity : BaseActivity() {
 
         binding.btnGithub.setOnClickListener { openExternalUrl(Links.REPO) }
         binding.btnFeedback.setOnClickListener { openExternalUrl(Links.ISSUES) }
+        // 开发者卡片 → GitHub 个人主页（头像与署名离线打包，跳转交给系统浏览器）
+        binding.cardDeveloper.setOnClickListener { openExternalUrl(Links.PROFILE) }
     }
 }

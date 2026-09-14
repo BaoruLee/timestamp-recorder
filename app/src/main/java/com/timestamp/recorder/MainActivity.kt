@@ -510,7 +510,7 @@ class MainActivity : BaseActivity() {
     private fun handleMenuAction(id: Int): Boolean = when (id) {
         MENU_SETTINGS -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
         MENU_STATS -> { startActivity(Intent(this, StatsActivity::class.java)); true }
-        MENU_TUTORIAL -> { openExternalUrl(Links.TUTORIAL); true }
+        MENU_TUTORIAL -> { startActivity(Intent(this, TutorialActivity::class.java)); true }
         else -> false
     }
 

@@ -140,7 +140,7 @@ class SettingsActivity : BaseActivity() {
         }
 
         // 使用教程：交给系统浏览器打开 README 的教程章节
-        binding.btnTutorial.setOnClickListener { openExternalUrl(Links.TUTORIAL) }
+        binding.btnTutorial.setOnClickListener { startActivity(Intent(this, TutorialActivity::class.java)) }
 
         // 数据备份 / 恢复（走系统 SAF，不申请存储权限）
         binding.btnExportBackup.setOnClickListener {

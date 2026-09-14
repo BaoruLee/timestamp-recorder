@@ -16,6 +16,9 @@ object Links {
      */
     const val REPO = "https://github.com/baoru0908/timestamp-recorder"
 
+    /** 开发者的 GitHub 主页（关于页头像卡片跳转用） */
+    const val PROFILE = "https://github.com/baoru0908"
+
     /** 问题反馈 / 建议 */
     const val ISSUES = "$REPO/issues"
 

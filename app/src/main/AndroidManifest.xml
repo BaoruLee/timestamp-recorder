@@ -43,6 +43,11 @@
             android:theme="@style/Theme.Timestamp" />
 
         <activity
+            android:name=".TutorialActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Timestamp" />
+
+        <activity
             android:name=".StatsActivity"
             android:exported="false"
             android:theme="@style/Theme.Timestamp" />
