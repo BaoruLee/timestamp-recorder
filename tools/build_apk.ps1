@@ -35,8 +35,13 @@ New-Item -ItemType Directory -Force -Path "$work\app" | Out-Null
 Copy-Item (Join-Path $root "app\src") (Join-Path $work "app\src") -Recurse -Force
 Write-Host "WORK : $work"
 
+# Security: the keystore password is NOT hardcoded (this script is committed
+# to the repo). It is read from $env:TSR_KEYSTORE_PASS, or prompted at runtime.
 $ks = Join-Path $root "release.keystore"
-$ksPass = "timestamp2026"
+$ksPass = $env:TSR_KEYSTORE_PASS
+if ([string]::IsNullOrWhiteSpace($ksPass)) {
+    $ksPass = Read-Host "Keystore password (alias=timestamp)"
+}
 $out = Join-Path $root "时间戳记录_v1.0.apk"
 $build = Join-Path $work "build"
 New-Item -ItemType Directory -Force -Path "$build\gen", "$build\classes", "$build\dex" | Out-Null
