@@ -14,6 +14,10 @@ local.properties
 *.iml
 .DS_Store
 
+# Python 工具缓存
+__pycache__/
+*.pyc
+
 # 交付安装包与签名密钥：严禁入库
 # （安装包请走 GitHub Releases，不要放进仓库）
 *.apk

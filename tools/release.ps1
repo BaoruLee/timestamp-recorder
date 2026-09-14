@@ -79,6 +79,26 @@ if ($LASTEXITCODE -ne 0) { throw "Signing failed" }
 
 Write-Host "Built: $signed" -ForegroundColor Green
 
+# ---------- 2b. verify signature (release red line) ----------
+# Users upgrade by overwriting the installed app, so every published APK must
+# carry the release keystore signature. If signing silently fell back to the
+# debug key, Android would refuse the upgrade with a signature conflict.
+# Expected = release.keystore cert SHA-256 (CN=TimestampRecorder).
+$expectCert = "cca83079a87053a579262dfd8db5191af36349aacd2db26b5c5c67daf8f976ce"
+$prevEAP = $ErrorActionPreference
+$ErrorActionPreference = "Continue"
+$certOut = (& (Join-Path $bt "apksigner.bat") verify --print-certs $signed 2>&1) | Out-String
+$ErrorActionPreference = $prevEAP
+if ($certOut -match "SHA-256 digest:\s*([0-9a-fA-F]+)") {
+    $actualCert = $Matches[1].ToLower()
+} else {
+    throw "Cannot read the signature of $signed - refusing to publish an unverifiable APK."
+}
+if ($actualCert -ne $expectCert) {
+    throw "Signature mismatch: got $actualCert, expected $expectCert. The APK was not signed with release.keystore, so users could not overwrite-install it."
+}
+Write-Host "Signature verified: CN=TimestampRecorder ($($actualCert.Substring(0,16))...)" -ForegroundColor Green
+
 # ---------- 3. optional: tag + GitHub Release ----------
 if (-not $CreateRelease) {
     Write-Host ""

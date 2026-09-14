@@ -22,9 +22,88 @@ import urllib.request
 REPO = "BaoruLee/timestamp-recorder"
 ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# Release red line: the APK attached to a GitHub Release MUST be signed with
+# release.keystore (CN=TimestampRecorder). Users upgrade by overwriting the
+# installed app, so a debug or otherwise-differently-signed build would be
+# rejected by Android with a signature conflict. This fingerprint is the
+# release keystore's certificate SHA-256 digest -- do not change it by hand.
+RELEASE_CERT_SHA256 = "cca83079a87053a579262dfd8db5191af36349aacd2db26b5c5c67daf8f976ce"
+
 
 def run(cmd, capture=True):
     return subprocess.run(cmd, capture_output=capture, text=True)
+
+
+def find_apksigner():
+    """Locate apksigner from the Android SDK (build-tools, newest first)."""
+    bases = []
+    for var in ("ANDROID_HOME", "ANDROID_SDK_ROOT"):
+        v = os.environ.get(var)
+        if v:
+            bases.append(os.path.join(v, "build-tools"))
+    lp = os.path.join(ROOT, "local.properties")
+    if os.path.exists(lp):
+        with open(lp, encoding="utf-8", errors="ignore") as f:
+            for line in f:
+                if line.strip().startswith("sdk.dir="):
+                    sdk = line.split("=", 1)[1].strip().replace("\\\\", "\\")
+                    bases.append(os.path.join(sdk, "build-tools"))
+    la = os.environ.get("LOCALAPPDATA")
+    if la:
+        bases.append(os.path.join(la, "Android", "Sdk", "build-tools"))
+    for base in bases:
+        if not os.path.isdir(base):
+            continue
+        for ver in sorted(os.listdir(base), reverse=True):
+            for name in ("apksigner.bat", "apksigner"):
+                p = os.path.join(base, ver, name)
+                if os.path.exists(p):
+                    return p
+    return None
+
+
+def run_tool(cmd):
+    """Run an external tool; .bat wrappers on Windows may need cmd.exe."""
+    try:
+        return subprocess.run(cmd, capture_output=True, text=True)
+    except OSError:
+        comspec = os.environ.get("COMSPEC", "cmd.exe")
+        return subprocess.run([comspec, "/c"] + cmd, capture_output=True, text=True)
+
+
+def verify_release_signature(apk):
+    """Refuse to publish anything that is not the release-signed APK."""
+    signer = find_apksigner()
+    if not signer:
+        sys.exit(
+            "找不到 apksigner，无法校验 APK 签名。\n"
+            "请确认 Android SDK 存在（ANDROID_HOME / local.properties），\n"
+            "并统一用 .\\tools\\release.ps1 构建签名包。"
+        )
+    res = run_tool([signer, "verify", "--print-certs", apk])
+    out = (res.stdout or "") + (res.stderr or "")
+    if res.returncode != 0:
+        sys.exit("APK 未签名或已损坏，拒绝发布：\n" + out)
+    digest = ""
+    for line in out.splitlines():
+        if "Signer #1 certificate SHA-256 digest" in line:
+            digest = line.split(":")[-1].strip().lower().replace(":", "")
+            break
+    if not digest:
+        sys.exit("无法读取 APK 签名指纹，拒绝发布。")
+    if digest != RELEASE_CERT_SHA256:
+        if "Android Debug" in out:
+            sys.exit(
+                "拒绝发布：该 APK 是 debug 签名，用户无法覆盖安装。\n"
+                "请执行 .\\tools\\release.ps1 重新构建 release 签名包。"
+            )
+        sys.exit(
+            "拒绝发布：APK 签名与 release.keystore 不一致，\n"
+            "用户安装时会因签名冲突失败（无法覆盖升级）。\n"
+            "  实际: %s\n  期望: %s\n"
+            "请执行 .\\tools\\release.ps1 重新构建签名包。" % (digest, RELEASE_CERT_SHA256)
+        )
+    print("签名校验通过：CN=TimestampRecorder (%s...)" % digest[:16])
 
 
 def read_version():
@@ -130,6 +209,9 @@ def main():
     apk = os.path.join(ROOT, "TimestampRecorder_v%s.apk" % version)
     if not os.path.exists(apk):
         sys.exit("找不到 APK：%s\n请先执行 .\\tools\\release.ps1 构建签名。" % apk)
+
+    # 发布红线：只允许上传 release 签名的包（用户靠覆盖安装升级）。
+    verify_release_signature(apk)
 
     major, minor, patch = parse_version(version)
     prev = prev_tag(version)
