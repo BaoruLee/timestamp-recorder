@@ -8,63 +8,57 @@ import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.Menu
 import android.view.MenuItem
+import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
 import android.widget.Toast
-import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
 import androidx.coordinatorlayout.widget.CoordinatorLayout
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import androidx.recyclerview.widget.GridLayoutManager
+import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.color.DynamicColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.timestamp.recorder.databinding.ActivityMainBinding
 import com.timestamp.recorder.databinding.DialogEditEventBinding
 import com.timestamp.recorder.databinding.ItemEventBinding
+import java.util.Collections
 
-/** 主页：事件（分类）管理 + 染色 + 液态玻璃快捷按钮（位置可设）+ 小组件入口 */
-class MainActivity : AppCompatActivity() {
+/** 主页：事件（分类）管理 + 染色 + 快捷记录 + 拖拽排序 + 统计入口 */
+class MainActivity : BaseActivity() {
 
     private lateinit var binding: ActivityMainBinding
     private lateinit var repo: EventRepository
     private val adapter = EventAdapter()
+    private var dragEnabled = false
+
+    private val touchHelper by lazy {
+        ItemTouchHelper(object : ItemTouchHelper.SimpleCallback(
+            ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0
+        ) {
+            override fun onMove(rv: RecyclerView, vh: RecyclerView.ViewHolder, target: RecyclerView.ViewHolder): Boolean {
+                adapter.move(vh.bindingAdapterPosition, target.bindingAdapterPosition)
+                return true
+            }
+            override fun onSwiped(vh: RecyclerView.ViewHolder, direction: Int) {}
+            override fun isLongPressDragEnabled() = false
+            override fun isItemViewSwipeEnabled() = false
+            override fun clearView(rv: RecyclerView, vh: RecyclerView.ViewHolder) {
+                super.clearView(rv, vh)
+                adapter.persistOrder()
+            }
+        })
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
-        // 沉浸式：状态栏/导航栏透明（通杀各品牌，含小米 HyperOS 手势条）
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
-        )
         binding = ActivityMainBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        // 必须调用：否则 onCreateOptionsMenu 不会挂到 toolbar 上，
-        // 右上角的「设置」菜单项根本不会出现（之前就是漏了这行导致设置页无入口）
-        setSupportActionBar(binding.toolbar)
+        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.main_title, showBack = false)
         repo = EventRepository(this)
-
-        // 状态栏 inset：工具栏下沉到状态栏之下，背景渐变延伸至状态栏（无黑边）
-        ViewCompat.setOnApplyWindowInsetsListener(binding.appBar) { v, insets ->
-            val top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
-            v.updatePadding(top = top)
-            insets
-        }
-        // 导航栏 inset：底部内容上移，避开手势条/三键
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
-            val bottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-            v.updatePadding(bottom = bottom)
-            insets
-        }
 
         binding.recyclerEvents.layoutManager = LinearLayoutManager(this)
         binding.recyclerEvents.adapter = adapter
+        touchHelper.attachToRecyclerView(binding.recyclerEvents)
 
         binding.fabAdd.setOnClickListener { showEditDialog(null) }
         applyFabPosition()
@@ -74,7 +68,6 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         refresh()
         applyFabPosition()
-        // 回到前台时同步一次桌面小组件，避免 App 内增删事件后桌面仍是旧数据
         WidgetRecordHelper.refreshAll(this)
     }
 
@@ -91,33 +84,44 @@ class MainActivity : AppCompatActivity() {
         binding.fabAdd.layoutParams = lp
     }
 
-    // ---------- 菜单（设置入口） ----------
+    private fun currentSortMode(): String =
+        getSharedPreferences(SettingsActivity.PREFS, MODE_PRIVATE)
+            .getString(SettingsActivity.KEY_SORT_MODE, SettingsActivity.SORT_MANUAL) ?: SettingsActivity.SORT_MANUAL
+
+    // ---------- 菜单（设置 + 统计入口） ----------
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
         menu.add(Menu.NONE, 1, 0, R.string.menu_settings)
+        menu.add(Menu.NONE, 2, 0, R.string.menu_stats)
         return true
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
-            1 -> {
-                startActivity(Intent(this, SettingsActivity::class.java))
-                true
-            }
+            1 -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
+            2 -> { startActivity(Intent(this, StatsActivity::class.java)); true }
             else -> super.onOptionsItemSelected(item)
         }
     }
 
     private fun refresh() {
-        val events = repo.getEvents()
+        dragEnabled = currentSortMode() == SettingsActivity.SORT_MANUAL
+        val events = if (dragEnabled) repo.getEventsManualOrder() else repo.getEventsByRecent()
         adapter.submit(events)
         binding.tvEmpty.visibility = if (events.isEmpty()) View.VISIBLE else View.GONE
+    }
+
+    private fun quickRecord(event: TimestampEvent) {
+        repo.addRecord(event.id)
+        Toast.makeText(this, getString(R.string.toast_recorded, event.name), Toast.LENGTH_SHORT).show()
+        refresh()
+        WidgetRecordHelper.refreshAll(this)
     }
 
     private fun showEditDialog(event: TimestampEvent?) {
         val dlg = DialogEditEventBinding.inflate(layoutInflater)
         val colorAdapter = ColorAdapter(event?.color ?: EventColors.random())
-        dlg.recyclerColors.layoutManager = GridLayoutManager(this, 6)
+        dlg.recyclerColors.layoutManager = androidx.recyclerview.widget.GridLayoutManager(this, 6)
         dlg.recyclerColors.adapter = colorAdapter
         if (event != null) dlg.editName.setText(event.name)
 
@@ -127,7 +131,6 @@ class MainActivity : AppCompatActivity() {
             .setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.save, null)
             .create()
-        // 必须在 show() 之前设置：show() 内部同步触发 onShow，之后设置会错过回调
         dialog.setOnShowListener {
             dialog.getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = dlg.editName.text?.toString()?.trim().orEmpty()
@@ -135,11 +138,8 @@ class MainActivity : AppCompatActivity() {
                     dlg.inputName.error = getString(R.string.toast_name_required)
                     return@setOnClickListener
                 }
-                if (event == null) {
-                    repo.addEvent(name, colorAdapter.selected)
-                } else {
-                    repo.updateEvent(event.id, name, colorAdapter.selected)
-                }
+                if (event == null) repo.addEvent(name, colorAdapter.selected)
+                else repo.updateEvent(event.id, name, colorAdapter.selected)
                 dialog.dismiss()
                 refresh()
                 WidgetRecordHelper.refreshAll(this@MainActivity)
@@ -174,16 +174,31 @@ class MainActivity : AppCompatActivity() {
             .show()
     }
 
-    // ---------- 事件列表适配器 ----------
+    private fun openDetail(event: TimestampEvent) {
+        startActivity(Intent(this, EventDetailActivity::class.java)
+            .putExtra(EventDetailActivity.EXTRA_EVENT_ID, event.id))
+    }
+
+    // ---------- 事件列表适配器（支持拖拽重排） ----------
 
     private inner class EventAdapter : RecyclerView.Adapter<EventAdapter.VH>() {
 
-        private val items = mutableListOf<TimestampEvent>()
+        val items = mutableListOf<TimestampEvent>()
 
         fun submit(list: List<TimestampEvent>) {
             items.clear()
             items.addAll(list)
             notifyDataSetChanged()
+        }
+
+        fun move(from: Int, to: Int) {
+            if (from == to || from !in items.indices || to !in items.indices) return
+            Collections.swap(items, from, to)
+            notifyItemMoved(from, to)
+        }
+
+        fun persistOrder() {
+            repo.setEventsOrder(items.map { it.id })
         }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH {
@@ -212,31 +227,21 @@ class MainActivity : AppCompatActivity() {
                     shape = GradientDrawable.OVAL
                     setColor(event.color)
                 }
-
-                // 快捷记录：点右侧按钮直接为该事件打一条时间戳，无需进入详情页
                 b.btnQuickRecord.backgroundTintList = ColorStateList.valueOf(event.color)
-                b.btnQuickRecord.setOnClickListener {
-                    repo.addRecord(event.id)
-                    Toast.makeText(
-                        this@MainActivity,
-                        getString(R.string.toast_recorded, event.name),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    refresh()
-                    WidgetRecordHelper.refreshAll(this@MainActivity)
-                }
-
+                b.btnQuickRecord.setOnClickListener { quickRecord(event) }
                 b.root.setOnClickListener { openDetail(event) }
-                b.root.setOnLongClickListener {
-                    showEventMenu(event)
-                    true
+                b.btnMenu.setOnClickListener { showEventMenu(event) }
+
+                if (dragEnabled) {
+                    b.btnDrag.visibility = View.VISIBLE
+                    b.btnDrag.setOnTouchListener { _, e ->
+                        if (e.action == MotionEvent.ACTION_DOWN) touchHelper.startDrag(this)
+                        false
+                    }
+                } else {
+                    b.btnDrag.visibility = View.GONE
                 }
             }
         }
     }
-
-    private fun openDetail(event: TimestampEvent) {
-        startActivity(Intent(this, EventDetailActivity::class.java).putExtra(EventDetailActivity.EXTRA_EVENT_ID, event.id))
-    }
 }
-

@@ -37,6 +37,16 @@
             android:theme="@style/Theme.Timestamp" />
 
         <activity
+            android:name=".AboutActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Timestamp" />
+
+        <activity
+            android:name=".StatsActivity"
+            android:exported="false"
+            android:theme="@style/Theme.Timestamp" />
+
+        <activity
             android:name=".WidgetSingleConfigureActivity"
             android:exported="true"
             android:theme="@style/Theme.Timestamp">
@@ -69,6 +79,19 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/widget_single_info" />
+        </receiver>
+
+        <!-- 桌面小组件类型三：单事件 2×1 胶囊（创建时绑定事件） -->
+        <receiver
+            android:name=".WidgetCapsuleProvider"
+            android:label="@string/widget_capsule_label"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/widget_capsule_info" />
         </receiver>
 
         <!-- RemoteViewsService 已移除：「全部事件」小组件改为固定行渲染，

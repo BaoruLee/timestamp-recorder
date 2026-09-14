@@ -86,6 +86,38 @@ class EventRepository(context: Context) {
         prefs.edit().remove(recordsKey(id)).apply()
     }
 
+    /**
+     * 按「手动顺序」（即存储数组的顺序）返回事件列表。
+     * 拖拽排序时直接调整存储顺序，无需额外的 order 字段。
+     */
+    fun getEventsManualOrder(): List<TimestampEvent> = getEvents()
+
+    /** 按「最近记录时间」降序返回；无记录的事件排在最后。 */
+    fun getEventsByRecent(): List<TimestampEvent> {
+        val lastMap = getEvents().associateWith { lastRecord(it.id) ?: Long.MIN_VALUE }
+        return getEvents().sortedByDescending { lastMap[it] }
+    }
+
+    /** 拖拽结束时持久化新的手动顺序（传入事件 id 的顺序即新顺序）。 */
+    @Synchronized
+    fun setEventsOrder(orderedIds: List<Long>) {
+        val map = getEvents().associateBy { it.id }
+        val reordered = orderedIds.mapNotNull { map[it] }
+        val missing = map.values.filter { it.id !in orderedIds }
+        saveEvents(reordered + missing)
+    }
+
+    /** 用备份数据整体替换（先清空旧的事件与记录，再写入备份内容）。 */
+    @Synchronized
+    fun replaceAllData(data: BackupHelper.BackupData) {
+        // 清空所有记录键，避免残留旧数据
+        prefs.all.keys.filter { it.startsWith("records_") }.forEach {
+            prefs.edit().remove(it).apply()
+        }
+        saveEvents(data.events)
+        data.records.forEach { (id, list) -> saveRecords(id, list) }
+    }
+
     private fun saveEvents(events: List<TimestampEvent>) {
         val arr = JSONArray()
         events.forEach {

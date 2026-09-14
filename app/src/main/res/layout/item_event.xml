@@ -17,22 +17,32 @@
         android:layout_height="wrap_content"
         android:orientation="horizontal"
         android:gravity="center_vertical"
-        android:paddingStart="18dp"
+        android:paddingStart="10dp"
         android:paddingEnd="14dp"
-        android:paddingTop="14dp"
-        android:paddingBottom="14dp">
+        android:paddingTop="12dp"
+        android:paddingBottom="12dp">
+
+        <!-- 拖拽手柄：手动排序模式下长按/拖动可调整顺序 -->
+        <ImageButton
+            android:id="@+id/btnDrag"
+            android:layout_width="32dp"
+            android:layout_height="36dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/drag_handle"
+            android:src="@drawable/ic_drag" />
 
         <View
             android:id="@+id/viewColorDot"
             android:layout_width="14dp"
             android:layout_height="14dp"
+            android:layout_marginStart="6dp"
             android:background="@drawable/bg_color_dot" />
 
         <LinearLayout
             android:layout_width="0dp"
             android:layout_height="wrap_content"
             android:layout_weight="1"
-            android:layout_marginStart="14dp"
+            android:layout_marginStart="12dp"
             android:orientation="vertical">
 
             <TextView
@@ -52,12 +62,22 @@
                 android:textSize="13sp" />
         </LinearLayout>
 
+        <!-- 更多操作：编辑 / 删除 -->
+        <ImageButton
+            android:id="@+id/btnMenu"
+            android:layout_width="34dp"
+            android:layout_height="34dp"
+            android:layout_marginStart="6dp"
+            android:background="?attr/selectableItemBackgroundBorderless"
+            android:contentDescription="@string/more_actions"
+            android:src="@drawable/ic_more_vert" />
+
         <!-- 快捷记录按钮：显示当前记录条数，点击直接为该事件打一条时间戳 -->
         <LinearLayout
             android:id="@+id/btnQuickRecord"
             android:layout_width="wrap_content"
             android:layout_height="36dp"
-            android:layout_marginStart="12dp"
+            android:layout_marginStart="8dp"
             android:minWidth="62dp"
             android:orientation="horizontal"
             android:gravity="center"

@@ -3,22 +3,18 @@ package com.timestamp.recorder
 import android.appwidget.AppWidgetManager
 import android.content.ComponentName
 import android.content.Context
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.widget.Toast
-import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
-import com.google.android.material.color.DynamicColors
+import androidx.activity.result.contract.ActivityResultContracts
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.timestamp.recorder.databinding.ActivitySettingsBinding
+import java.nio.charset.StandardCharsets
 
-/** 设置页：快捷按钮（+）位置左/中/右切换 */
-class SettingsActivity : AppCompatActivity() {
+/** 设置页：快捷按钮（+）位置左/中/右切换、小组件圆角、一键添加、关于 */
+class SettingsActivity : BaseActivity() {
 
     companion object {
         const val PREFS = "tsr_settings"
@@ -26,34 +22,70 @@ class SettingsActivity : AppCompatActivity() {
         const val FAB_START = "start"
         const val FAB_CENTER = "center"
         const val FAB_END = "end"
+
+        /** 事件排序方式：手动（拖拽）/ 按最近记录时间 */
+        const val KEY_SORT_MODE = "sort_mode"
+        const val SORT_MANUAL = "manual"
+        const val SORT_RECENT = "recent"
     }
 
     private lateinit var binding: ActivitySettingsBinding
     private lateinit var prefs: android.content.SharedPreferences
 
+    private val exportBackupLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val uri = result.data?.data ?: return@registerForActivityResult
+            try {
+                val json = BackupHelper.exportJson(EventRepository(this))
+                contentResolver.openOutputStream(uri)?.use { os ->
+                    os.write(json.toByteArray(StandardCharsets.UTF_8))
+                }
+                Snackbar.make(binding.root, R.string.backup_exported, Snackbar.LENGTH_SHORT).show()
+            } catch (_: Exception) {
+                Snackbar.make(binding.root, R.string.backup_failed, Snackbar.LENGTH_SHORT).show()
+            }
+        }
+    }
+
+    private val importBackupLauncher = registerForActivityResult(
+        ActivityResultContracts.StartActivityForResult()
+    ) { result ->
+        if (result.resultCode == RESULT_OK) {
+            val uri = result.data?.data ?: return@registerForActivityResult
+            try {
+                val json = contentResolver.openInputStream(uri)?.bufferedReader()?.readText().orEmpty()
+                val data = BackupHelper.parse(json)
+                if (data == null) {
+                    Snackbar.make(binding.root, R.string.backup_invalid, Snackbar.LENGTH_LONG).show()
+                    return@registerForActivityResult
+                }
+                val totalRecords = data.records.values.sumOf { it.size }
+                MaterialAlertDialogBuilder(this)
+                    .setTitle(R.string.backup_import_confirm_title)
+                    .setMessage(getString(R.string.backup_import_confirm_msg, data.events.size, totalRecords))
+                    .setPositiveButton(R.string.backup_import_confirm) { _, _ ->
+                        EventRepository(this).replaceAllData(data)
+                        WidgetRecordHelper.refreshAll(this)
+                        Snackbar.make(binding.root, R.string.backup_imported, Snackbar.LENGTH_SHORT).show()
+                    }
+                    .setNegativeButton(R.string.cancel, null)
+                    .show()
+            } catch (_: Exception) {
+                Snackbar.make(binding.root, R.string.backup_failed, Snackbar.LENGTH_SHORT).show()
+            }
+        }
+    }
+
     override fun onCreate(savedInstanceState: Bundle?) {
-        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
-        )
         binding = ActivitySettingsBinding.inflate(layoutInflater)
         setContentView(binding.root)
         prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-        ViewCompat.setOnApplyWindowInsetsListener(binding.appBar) { v, insets ->
-            val top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
-            v.updatePadding(top = top)
-            insets
-        }
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
-            val bottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-            v.updatePadding(bottom = bottom)
-            insets
-        }
-
-        binding.toolbar.setNavigationOnClickListener { finish() }
+        // 统一工具栏 + 沉浸式 + 字体（由 BaseActivity 处理）
+        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.settings_title, showBack = true)
 
         when (prefs.getString(KEY_FAB_POS, FAB_END)) {
             FAB_START -> binding.rbStart.isChecked = true
@@ -92,6 +124,40 @@ class SettingsActivity : AppCompatActivity() {
         // 一键添加到桌面（标准 API：支持的 ROM 弹确认框钉到桌面；不支持的 ROM 退回手动添加指引）
         binding.btnPinAll.setOnClickListener { pinWidget(TimestampWidgetProvider::class.java) }
         binding.btnPinSingle.setOnClickListener { pinWidget(WidgetSingleProvider::class.java) }
+        binding.btnPinCapsule.setOnClickListener { pinWidget(WidgetCapsuleProvider::class.java) }
+
+        // 事件排序方式
+        when (prefs.getString(KEY_SORT_MODE, SORT_MANUAL)) {
+            SORT_RECENT -> binding.rbRecent.isChecked = true
+            else -> binding.rbManual.isChecked = true
+        }
+        binding.radioSort.setOnCheckedChangeListener { _, checkedId ->
+            val mode = if (checkedId == com.timestamp.recorder.R.id.rbRecent) SORT_RECENT else SORT_MANUAL
+            prefs.edit().putString(KEY_SORT_MODE, mode).apply()
+        }
+
+        // 关于 / 开源引导
+        binding.btnAbout.setOnClickListener {
+            startActivity(Intent(this, AboutActivity::class.java))
+        }
+
+        // 数据备份 / 恢复（走系统 SAF，不申请存储权限）
+        binding.btnExportBackup.setOnClickListener {
+            val now = TimeFormat.full(System.currentTimeMillis()).replace(':', '-').replace(' ', '_')
+            val intent = Intent(Intent.ACTION_CREATE_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+                putExtra(Intent.EXTRA_TITLE, "TimestampRecorder_backup_$now.json")
+            }
+            exportBackupLauncher.launch(intent)
+        }
+        binding.btnImportBackup.setOnClickListener {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "application/json"
+            }
+            importBackupLauncher.launch(intent)
+        }
     }
 
     /**

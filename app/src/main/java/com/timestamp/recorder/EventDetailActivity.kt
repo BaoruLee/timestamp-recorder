@@ -12,18 +12,11 @@ import android.view.Menu
 import android.view.MenuItem
 import android.view.View
 import android.view.ViewGroup
-import androidx.activity.SystemBarStyle
-import androidx.activity.enableEdgeToEdge
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AlertDialog
-import androidx.appcompat.app.AppCompatActivity
-import androidx.core.view.ViewCompat
-import androidx.core.view.WindowInsetsCompat
-import androidx.core.view.updatePadding
 import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.color.DynamicColors
+import androidx.core.view.updatePadding
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
 import com.timestamp.recorder.databinding.ActivityEventDetailBinding
@@ -34,7 +27,7 @@ import java.nio.charset.StandardCharsets
 import java.util.Locale
 
 /** 事件详情页：一键记录 + 记录列表管理（含批量勾选）+ 导出 */
-class EventDetailActivity : AppCompatActivity() {
+class EventDetailActivity : BaseActivity() {
 
     companion object {
         const val EXTRA_EVENT_ID = "extra_event_id"
@@ -50,7 +43,7 @@ class EventDetailActivity : AppCompatActivity() {
     private val selected = mutableSetOf<Long>()
 
     private val exportLauncher =
-        registerForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        registerForActivityResult(androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()) { result ->
             if (result.resultCode == RESULT_OK) {
                 val uri = result.data?.data ?: return@registerForActivityResult
                 exportTo(uri)
@@ -58,33 +51,13 @@ class EventDetailActivity : AppCompatActivity() {
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
-        DynamicColors.applyToActivityIfAvailable(this)
         super.onCreate(savedInstanceState)
-        // 沉浸式：状态栏/导航栏透明（通杀各品牌，含小米 HyperOS 手势条）
-        enableEdgeToEdge(
-            statusBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT),
-            navigationBarStyle = SystemBarStyle.auto(android.graphics.Color.TRANSPARENT, android.graphics.Color.TRANSPARENT)
-        )
         binding = ActivityEventDetailBinding.inflate(layoutInflater)
         setContentView(binding.root)
-        setSupportActionBar(binding.toolbar)
+        setupChrome(binding.toolbar, binding.appBar, binding.root, R.string.app_name, showBack = true)
         repo = EventRepository(this)
         eventId = intent.getLongExtra(EXTRA_EVENT_ID, -1L)
 
-        // 状态栏 inset：工具栏下沉到状态栏之下（无黑边）
-        ViewCompat.setOnApplyWindowInsetsListener(binding.appBar) { v, insets ->
-            val top = insets.getInsets(WindowInsetsCompat.Type.systemBars()).top
-            v.updatePadding(top = top)
-            insets
-        }
-        // 导航栏 inset：底部内容上移，避开手势条
-        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { v, insets ->
-            val bottom = insets.getInsets(WindowInsetsCompat.Type.systemBars()).bottom
-            v.updatePadding(bottom = bottom)
-            insets
-        }
-
-        binding.toolbar.setNavigationOnClickListener { finish() }
         binding.recyclerRecords.layoutManager = LinearLayoutManager(this)
         binding.recyclerRecords.adapter = adapter
 
@@ -246,6 +219,7 @@ class EventDetailActivity : AppCompatActivity() {
         val batchItem = menu.add(Menu.NONE, 5, 0, R.string.menu_batch)
         batchItem.setShowAsAction(MenuItem.SHOW_AS_ACTION_IF_ROOM)
         batchItem.setIcon(R.drawable.ic_check_box)
+        menu.add(Menu.NONE, 6, 0, R.string.menu_stats)
         return true
     }
 
@@ -256,6 +230,8 @@ class EventDetailActivity : AppCompatActivity() {
             3 -> confirmClear()
             4 -> confirmDeleteEvent()
             5 -> enterSelectionMode()
+            6 -> startActivity(Intent(this, StatsActivity::class.java)
+                .putExtra(StatsActivity.EXTRA_FOCUS_EVENT_ID, eventId))
             else -> return super.onOptionsItemSelected(item)
         }
         return true

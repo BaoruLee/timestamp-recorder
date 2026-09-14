@@ -68,6 +68,16 @@ class WidgetSingleConfigureActivity : AppCompatActivity() {
         }
     }
 
+    /**
+     * 本配置页同时服务「单事件大按钮」和「2×1 胶囊」两种外观。
+     * 必须按当前实例真实的 provider 去构建 RemoteViews —— 用错布局的话，
+     * 设置的目标控件 id 在另一个布局里不存在，桌面刷新会失败、小组件空着。
+     */
+    private fun isCapsule(): Boolean {
+        val info = AppWidgetManager.getInstance(this).getAppWidgetInfo(widgetId) ?: return false
+        return info.provider?.className == WidgetCapsuleProvider::class.java.name
+    }
+
     private fun onPick(eventId: Long) {
         if (widgetId == AppWidgetManager.INVALID_APPWIDGET_ID) {
             setResult(RESULT_CANCELED)
@@ -75,7 +85,13 @@ class WidgetSingleConfigureActivity : AppCompatActivity() {
             return
         }
         WidgetPrefs.saveSingleBind(this, widgetId, eventId)
-        AppWidgetManager.getInstance(this).updateAppWidget(widgetId, WidgetSingleProvider.buildRemoteViews(this, widgetId))
+        val manager = AppWidgetManager.getInstance(this)
+        val views = if (isCapsule()) {
+            WidgetCapsuleProvider.buildRemoteViews(this, widgetId)
+        } else {
+            WidgetSingleProvider.buildRemoteViews(this, widgetId)
+        }
+        manager.updateAppWidget(widgetId, views)
         setResult(RESULT_OK)
         finish()
     }
