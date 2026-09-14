@@ -6,12 +6,22 @@
 
 ### 记录一次，就点一下
 
-[![Version](https://img.shields.io/badge/版本-3.0.0-4C8BF5?style=flat-square)](../../releases)
-[![Platform](https://img.shields.io/badge/Android-7.0+-3DDC84?style=flat-square)](../../releases)
+[![下载最新版](https://img.shields.io/github/v/release/baoru0908/timestamp-recorder?display_name=tag&style=for-the-badge&label=下载最新版&color=2F6BFF&logo=android&logoColor=white)](https://github.com/baoru0908/timestamp-recorder/releases/latest)
+[![全部版本](https://img.shields.io/badge/全部版本-更新日志-6E7681?style=for-the-badge&logo=github&logoColor=white)](https://github.com/baoru0908/timestamp-recorder/releases)
+
+<sub>Android 7.0+ · 零权限 · MIT · 同一把证书签名，<b>升级可直接覆盖安装、数据不丢</b></sub>
+
+<br>
+
+[![Version](https://img.shields.io/github/v/release/baoru0908/timestamp-recorder?display_name=tag&style=flat-square&label=版本&color=4C8BF5)](https://github.com/baoru0908/timestamp-recorder/releases/latest)
+[![Platform](https://img.shields.io/badge/Android-7.0+-3DDC84?style=flat-square)](#-安装与升级)
 [![Permissions](https://img.shields.io/badge/权限-0-97CA00?style=flat-square)](#-隐私)
 [![License](https://img.shields.io/badge/license-MIT-orange?style=flat-square)](LICENSE)
 
 </div>
+
+> 💡 **怎么装**：点上面的蓝色按钮 → 在新页面底部的 **Assets** 里下载 `TimestampRecorder_vX.Y.Z.apk` → 手机上点开安装（首次会要求允许「安装未知来源应用」）。
+> 已经装过旧版的话，**直接覆盖安装即可升级**，事件与记录都不会丢，不用先卸载。
 
 ---
 
@@ -247,15 +257,18 @@
 | **未验证** | 其他品牌与 ROM、平板与折叠屏、Android 12 以下的老机型、超大字体与横屏等边界情况 |
 | **已知失效** | 小米 HyperOS 4 的「一键添加到桌面」不生效，必须手动长按桌面添加 —— 这是桌面没实现官方接口，与本 App 无关，详见上面第 6 节 |
 
-代码里对低版本做了降级（比如模糊效果在 Android 12 以下自动退回纯色背景），但**这些降级路径没有实机验证过**。如果在你的设备上出现异常，欢迎到 [Issues](../../issues) 反馈，附上机型 + 系统版本 + 复现步骤即可。
+代码里对低版本做了降级（比如模糊效果在 Android 12 以下自动退回纯色背景），但**这些降级路径没有实机验证过**。如果在你的设备上出现异常，欢迎到 [Issues](https://github.com/baoru0908/timestamp-recorder/issues) 反馈，附上机型 + 系统版本 + 复现步骤即可。
 
 ## 📥 安装与升级
 
-在 [**Releases**](../../releases) 页面下载最新的 `TimestampRecorder_vX.Y.Z.apk`，直接安装即可。
+[![下载最新版](https://img.shields.io/github/v/release/baoru0908/timestamp-recorder?display_name=tag&style=for-the-badge&label=下载最新版&color=2F6BFF&logo=android&logoColor=white)](https://github.com/baoru0908/timestamp-recorder/releases/latest)
+
+点上面的按钮进入 **最新版 Release 页面** → 翻到底部 **Assets** 区域 → 下载 `TimestampRecorder_vX.Y.Z.apk`。
 
 - 所有版本的安装包都使用**同一把签名证书**，因此可以**直接覆盖安装**完成升级——**已有事件与记录数据不会丢失，也不需要先卸载**。
 - 首次安装若被系统拦截，按提示允许「安装未知来源应用」即可。
 - 换机或重装前，建议先用「设置 → 数据备份」导出一份 JSON，装好后从备份恢复。
+- 想找旧版本或看每版改了什么，去 [**全部版本**](https://github.com/baoru0908/timestamp-recorder/releases)。
 
 ## 🔨 构建
 
@@ -269,7 +282,7 @@
 
 ## 📋 版本记录
 
-每个版本的**新特性中文介绍与安装包**都在 [**Releases**](../../releases) 页面。
+每个版本的**新特性中文介绍与安装包**都在 [**Releases**](https://github.com/baoru0908/timestamp-recorder/releases) 页面。
 
 ## 📄 许可
 
