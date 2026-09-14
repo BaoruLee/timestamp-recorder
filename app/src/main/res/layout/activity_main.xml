@@ -1,11 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 主页：底部「事件 / 时间线」双 Tab。
-
-     底栏（悬浮胶囊岛）的两种形态（由 MainActivity.syncBarMode 运行时决定）：
-     ① 系统能提供「窗口背景模糊」（HyperOS 高级材质，且用户开关是开的）→ 胶囊岛被放进一个
-        独立窗口，模糊由系统合成器完成，App 端零开销；此时布局里的 bottomBar 会被隐藏；
-     ② 否则 → 用布局里的 bottomBar：半透明静态胶囊（`bg_bottom_nav`），完全不模糊。
-     两个形态共用同一份 Tab 文字与位置坐标，切换时不需要改布局。 -->
+<!-- 主页：BlurView 重构版。
+     顶部额头和底部岛均用 BlurView 做实时背后模糊，状态栏配色由 Activity 主窗口控制。 -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:id="@+id/root"
@@ -18,9 +13,7 @@
         android:layout_height="match_parent"
         android:background="@drawable/bg_main_gradient">
 
-        <!-- 时间线底轨（只在「时间线」Tab 显示）：贯穿屏幕上下的一条淡线。
-             放在最前面 = 画在最底层，所以它在工具栏玻璃之下也能透出来，
-             彩色段（各列表项）叠在它上面，于是整条线从屏幕顶端连绵到手势条上方。 -->
+        <!-- 时间线底轨 -->
         <View
             android:id="@+id/timelineTrack"
             android:layout_width="2dp"
@@ -30,11 +23,29 @@
             android:background="@drawable/timeline_track"
             android:visibility="gone" />
 
+        <!-- 内容区：从屏幕顶端开始铺（去掉 scrolling behavior），
+             滚动时内容从顶部玻璃栏底下穿过，BlurView 才能模糊到内容。
+             顶部 padding 由代码动态设置（等于 AppBar 高度），初始内容不被挡住。 -->
+        <androidx.viewpager2.widget.ViewPager2
+            android:id="@+id/viewPager"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false" />
+
+        <!-- 顶部模糊背景层（BlurView）：在 ViewPager2 上面、AppBarLayout 下面，
+             模糊背后的列表内容，AppBarLayout 透明背景透出模糊。 -->
+        <eightbitlab.com.blurview.BlurView
+            android:id="@+id/topBlur"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:clickable="false"
+            android:focusable="false" />
+
         <com.google.android.material.appbar.AppBarLayout
             android:id="@+id/appBar"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:background="@drawable/bg_top_bar"
+            android:background="@android:color/transparent"
             app:elevation="0dp">
 
             <com.google.android.material.appbar.MaterialToolbar
@@ -45,8 +56,6 @@
                 app:title="@string/main_title"
                 app:titleTextAppearance="@style/TextAppearance.Material3.TitleLarge">
 
-                <!-- 「⋮」用自定义按钮而不是 options menu：这样点它弹的是我们那块玻璃菜单，
-                     位置也完全可控（系统 PopupMenu 的样式和定位都跟这套玻璃语言不搭）。 -->
                 <ImageButton
                     android:id="@+id/btnMore"
                     android:layout_width="44dp"
@@ -69,16 +78,7 @@
                 android:textSize="13sp" />
         </com.google.android.material.appbar.AppBarLayout>
 
-        <!-- 内容区：ViewPager2 承载「事件 / 时间线」两页 ——
-             跟手横滑、可急停、可反向拖回，是 AndroidX 的标准页面容器；
-             Tab 胶囊滑块通过 onPageScrolled 与它逐帧联动。 -->
-        <androidx.viewpager2.widget.ViewPager2
-            android:id="@+id/viewPager"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            app:layout_behavior="@string/appbar_scrolling_view_behavior" />
-
-        <!-- 液态玻璃快捷按钮：位置可在设置页切换（左/中/右），上移至底部 Tab 栏上方 -->
+        <!-- 加号按钮 -->
         <ImageButton
             android:id="@+id/fabAdd"
             android:layout_width="60dp"
@@ -93,11 +93,8 @@
             android:src="@drawable/ic_add" />
     </androidx.coordinatorlayout.widget.CoordinatorLayout>
 
-    <!-- 底栏 = 悬浮胶囊岛（布局内形态）。
-         左右各留 16dp；离手势条 12dp（bottomMargin 由代码再加上导航栏高度）。
-         背景 = bg_bottom_nav 的**半透明静态胶囊**；是否做模糊由 MainActivity.syncBarMode 运行时决定
-         （系统能给就换成独立窗口版，那时这个 bottomBar 会被隐藏）。 -->
-    <FrameLayout
+    <!-- 底部岛：BlurView 直接作为容器，模糊背后的列表内容 -->
+    <eightbitlab.com.blurview.BlurView
         android:id="@+id/bottomBar"
         android:layout_width="match_parent"
         android:layout_height="@dimen/tab_bar_height"
@@ -119,7 +116,6 @@
             android:paddingStart="8dp"
             android:paddingEnd="8dp">
 
-            <!-- 与独立窗口版（view_bottom_nav.xml）保持完全一致的结构与 id -->
             <LinearLayout
                 android:id="@+id/tabEvents"
                 android:layout_width="0dp"
@@ -170,5 +166,5 @@
                     android:textSize="15sp" />
             </LinearLayout>
         </LinearLayout>
-    </FrameLayout>
+    </eightbitlab.com.blurview.BlurView>
 </FrameLayout>

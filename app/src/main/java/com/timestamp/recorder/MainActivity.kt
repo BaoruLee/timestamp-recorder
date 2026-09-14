@@ -122,7 +122,10 @@ class MainActivity : BaseActivity() {
             (pageEvents.tvEmpty.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         applyFabPosition()
         setupBottomBar()
+        setupBlurViews()
         styleTab()
+        // 状态栏配色由 Activity 主窗口控制（BlurView 版不再有独立窗口干扰）
+        updateStatusBarAppearance()
         // 若从详情页菜单直达时间线 Tab，需在渲染后生效
         if (intent.getBooleanExtra(EXTRA_OPEN_TIMELINE, false)) {
             selectTab(TAB_TIMELINE)
@@ -178,6 +181,56 @@ class MainActivity : BaseActivity() {
      * - bottomBar 高度 = 64dp + 导航栏 inset，一直铺到屏幕最底，系统手势条浮在玻璃之上；
      * - Tab 内容层按导航栏高度加底部 padding，文字绝不被手势条遮挡。
      */
+    /** 初始化 BlurView：顶部额头和底部岛的实时背后模糊 */
+    private fun setupBlurViews() {
+        val radius = 25f
+        val blurAlgorithm = if (android.os.Build.VERSION.SDK_INT >= 31) {
+            eightbitlab.com.blurview.RenderEffectBlur()
+        } else {
+            eightbitlab.com.blurview.RenderScriptBlur(this)
+        }
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES
+        val overlay = if (night) 0x44000000.toInt() else 0x44FFFFFF.toInt()
+        try {
+            binding.topBlur.setupWith(binding.root, blurAlgorithm)
+                .setBlurRadius(radius)
+                .setBlurAutoUpdate(true)
+                .setOverlayColor(overlay)
+        } catch (_: Throwable) { }
+        try {
+            binding.bottomBar.setupWith(binding.root, blurAlgorithm)
+                .setBlurRadius(radius)
+                .setBlurAutoUpdate(true)
+                .setOverlayColor(overlay)
+        } catch (_: Throwable) { }
+        // 顶部 BlurView 高度匹配 AppBar（含状态栏区域）
+        binding.appBar.viewTreeObserver.addOnGlobalLayoutListener(object :
+            android.view.ViewTreeObserver.OnGlobalLayoutListener {
+            override fun onGlobalLayout() {
+                val h = binding.appBar.height
+                if (h > 0) {
+                    val lp = binding.topBlur.layoutParams
+                    if (lp.height != h) {
+                        lp.height = h
+                        binding.topBlur.layoutParams = lp
+                    }
+                    if (binding.viewPager.paddingTop != h) {
+                        binding.viewPager.setPadding(0, h, 0, 0)
+                    }
+                }
+            }
+        })
+    }
+
+    /** 状态栏配色：主窗口控制，浅色深色图标、深色白图标 */
+    private fun updateStatusBarAppearance() {
+        val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                Configuration.UI_MODE_NIGHT_YES
+        androidx.core.view.WindowCompat.getInsetsController(window, window.decorView)
+            ?.isAppearanceLightStatusBars = !night
+    }
+
     private fun setupBottomBar() {
         val immersive = object : androidx.core.view.OnApplyWindowInsetsListener {
             override fun onApplyWindowInsets(
@@ -222,26 +275,14 @@ class MainActivity : BaseActivity() {
      */
     private fun syncBarMode() {
         syncTopBar()
-        val want = if (SystemBlur.isUsable(this)) MODE_WINDOW_BLUR else MODE_STATIC
-        if (want != barMode) {
-            barMode = want
-            // 换形态前先收掉旧窗口，避免窗口残留 / 旧引用被继续使用
-            glassDialog?.dismiss()
-            glassDialog = null
-            islandW = 0
-            islandH = 0
-            if (want == MODE_WINDOW_BLUR) {
-                binding.bottomBar.visibility = View.GONE
-                buildIslandWindow()
-            } else {
-                binding.bottomBar.visibility = View.VISIBLE
-                tabEventsRef = layoutTabEvents
-                tabTimelineRef = layoutTabTimeline
-                bindSlider(binding.tabSlider)
-            }
-            tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
-            tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
-        }
+        // BlurView 重构版：始终用布局内 BlurView 做实时模糊，不创建独立窗口
+        binding.bottomBar.visibility = View.VISIBLE
+        tabEventsRef = layoutTabEvents
+        tabTimelineRef = layoutTabTimeline
+        bindSlider(binding.tabSlider)
+        tabEventsRef?.root?.setOnClickListener { selectTab(TAB_EVENTS) }
+        tabTimelineRef?.root?.setOnClickListener { selectTab(TAB_TIMELINE) }
+        barMode = MODE_STATIC
         applyBarLayout(navInsetPx)
         styleTab()
     }
@@ -264,28 +305,10 @@ class MainActivity : BaseActivity() {
      * 与原来的 options menu 共用一套逻辑。
      */
     private fun syncTopBar() {
-        // 顶栏形态：系统能给模糊就搬进独立窗口（真·实时模糊，且能罩住状态栏）；
-        // 给不了就用布局内的 AppBar（静态半透明玻璃）。
-        //
-        // ⚠️ 已知代价（主人权衡后选择保留模糊）：这扇独立窗口会变成「最上层应用窗口」，
-        //    状态栏图标按它上色，而它必须 NOT_FOCUSABLE → appearance 设不进去
-        //    （InsetsController / LayoutParams.systemUiVisibility / decorView.systemUiVisibility
-        //     三种写法全试过都无效），于是浅色模式下状态栏时间是白色的。
-        //    实测：有这扇窗时间区深色 0%，没有 39%。**状态栏与模糊在这台 ROM 上互斥**，
-        //    目前按主人要求优先保留模糊。
-        val want = if (SystemBlur.isUsable(this)) MODE_WINDOW_BLUR else MODE_STATIC
-        if (want != topBarMode) {
-            topBarMode = want
-            dismissTopBar()
-            if (want == MODE_WINDOW_BLUR) {
-                binding.appBar.visibility = View.GONE
-                buildTopBarWindow()
-            } else {
-                binding.appBar.visibility = View.VISIBLE
-                // 布局内形态也要有「⋮」—— 而且同样弹我们那块玻璃菜单
-                binding.btnMore.setOnClickListener { showOverflowMenu(it) }
-            }
-        }
+        // BlurView 重构版：始终用布局内 AppBar + topBlur 做实时模糊
+        binding.appBar.visibility = View.VISIBLE
+        binding.btnMore.setOnClickListener { showOverflowMenu(it) }
+        topBarMode = MODE_STATIC
         applyTopBarInsets()
     }
 
@@ -301,16 +324,6 @@ class MainActivity : BaseActivity() {
         dlg.window?.let { w ->
             w.setDimAmount(0f)
             w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            // ⚠️ 试过改成 TYPE_APPLICATION_PANEL（子窗口不参与系统栏配色，能让状态栏黑化），
-            //    但 PANEL 是**子窗口**，必须带 Activity 的 window token，Dialog 拿不到 →
-            //    直接抛 BadTokenException，App 打不开。只能维持 TYPE_APPLICATION。
-            // 不吃焦点、不拦截窗口外的触摸；要让这扇窗真正顶到屏幕最上（含状态栏），
-            // 只靠 LAYOUT_IN_SCREEN 不够 —— 系统仍会把 TYPE_APPLICATION 摆到「应用可用区」里
-            // （实测 frame=[0,169]…，状态栏那 169px 罩不住），必须再给 LAYOUT_NO_LIMITS。
-            // ⚠️ NO_LIMITS 只在**显式给了宽高 + floating** 时才安全：否则窗口会退化成整屏
-            //    （既整屏被模糊、又挡掉所有触摸，踩过）。
-            // LAYOUT_IN_SCREEN + NO_LIMITS 缺一不可：少了它们窗口会被摆在「应用可用区」里，
-            // 顶不到 y=0，状态栏那一条就罩不住（栏会掉到状态栏下面，观感退步）。
             w.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
@@ -321,16 +334,12 @@ class MainActivity : BaseActivity() {
             val lp = w.attributes
             lp.width = android.view.WindowManager.LayoutParams.MATCH_PARENT
             lp.height = android.view.WindowManager.LayoutParams.WRAP_CONTENT
-            // ⚠️ 关键：不能让窗口被系统栏再挤一次。默认会按 statusBars 内缩，
-            // 于是玻璃栏掉到状态栏之下（原 AppBar 是罩着状态栏的，观感会退步）。
+            // ★ 关键：type=PANEL 让 appearance 记入 StatusBar 决策 → 黑化
+            lp.type = android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL
             if (android.os.Build.VERSION.SDK_INT >= 30) {
                 lp.fitInsetsTypes = 0
                 lp.fitInsetsSides = 0
             }
-            // 状态栏图标配色「多管齐下」（不同 ROM 听不同的 API，全写上，谁认谁生效）：
-            // lp.systemUiVisibility（部分 ROM 按 LayoutParams 上色）+ post 里的
-            // InsetsController 和 decorView.systemUiVisibility。HyperOS 上都不认（已知取舍），
-            // 但原生 / 其他 ROM 认 LayoutParams 这条路 —— 写上不吃亏。
             val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                     Configuration.UI_MODE_NIGHT_YES
             if (!night) {
@@ -339,38 +348,48 @@ class MainActivity : BaseActivity() {
                     lp.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
             }
             w.attributes = lp
+            w.statusBarColor = Color.TRANSPARENT
             SystemBlur.attach(
                 dlg,
                 resources.getDimensionPixelSize(R.dimen.glass_blur_radius),
                 resources.getDrawable(R.drawable.bg_top_bar, theme)
             )
         }
-        dlg.show()
-        topBarDialog = dlg
-        // ⚠️ 这扇窗盖住了状态栏，于是**状态栏图标按"它的" appearance 来画**，
-        //    主 Activity 那边的设置会被它盖掉（实测：把这扇窗去掉后状态栏立刻正常黑化，
-        //    开着它就变全白 —— 时间文字与背景同为 250，等于隐形）。
-        //    所以这里也必须点亮，而且要等窗口真正 attach 之后（show() 刚返回时设不算数）。
+        // ★ PANEL 必须带 Activity token，等就绪再 show（防 BadTokenException）
+        val token = binding.root.windowToken
+        if (token != null) {
+            dlg.window?.attributes?.token = token
+            dlg.show()
+            topBarDialog = dlg
+            afterTopBarShown(dlg)
+        } else {
+            binding.root.post {
+                if (!isDestroyed) {
+                    dlg.window?.attributes?.token = binding.root.windowToken
+                    dlg.show()
+                    topBarDialog = dlg
+                    afterTopBarShown(dlg)
+                }
+            }
+        }
+    }
+
+    private fun afterTopBarShown(dlg: android.app.Dialog) {
         dlg.window?.let { w ->
-            w.statusBarColor = Color.TRANSPARENT
             val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
                     Configuration.UI_MODE_NIGHT_YES
             w.decorView.post {
                 androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
                     ?.isAppearanceLightStatusBars = !night
                 if (!night) {
-                    // 旧 API 兜底：直接写 decorView 的 flag，绕过 InsetsController
                     @Suppress("DEPRECATION")
                     w.decorView.systemUiVisibility =
                         w.decorView.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
                 }
             }
         }
-        // 布局完成后再算实际高度（那一刻 insets / 测量才可靠）
         dlg.window?.decorView?.post { applyTopBarInsets() }
-        // 每次布局完都对一次：show() 刚返回时窗口还没测量（量到的高度偏小），列表留白会算少，
-        // 首个事件就被压在玻璃底下。等布局稳定后再量一次就能对上（值不变时不会重复写回）。
-        val obs = dlg.window?.decorView?.viewTreeObserver
+        val obs = topBarRoot?.viewTreeObserver
         if (obs != null && obs.isAlive) {
             val l = object : ViewTreeObserver.OnGlobalLayoutListener {
                 override fun onGlobalLayout() = applyTopBarInsets()
@@ -380,18 +399,32 @@ class MainActivity : BaseActivity() {
         }
     }
 
+    private fun attachPanel(
+        content: View,
+        lp: android.view.WindowManager.LayoutParams,
+        ready: () -> Unit
+    ) {
+        val token = binding.root.windowToken
+        if (token != null) {
+            lp.token = token
+            val wm = getSystemService(android.content.Context.WINDOW_SERVICE) as android.view.WindowManager
+            wm.addView(content, lp)
+            ready()
+        } else if (!isDestroyed) {
+            binding.root.post { attachPanel(content, lp, ready) }
+        }
+    }
+
     /** 收掉顶部玻璃栏窗口（连同布局监听，避免泄漏） */
     private fun dismissTopBar() {
         topBarLayoutListener?.let { l ->
             try {
-                val obs = topBarDialog?.window?.decorView?.viewTreeObserver
+                val obs = topBarRoot?.viewTreeObserver
                 if (obs != null && obs.isAlive) obs.removeOnGlobalLayoutListener(l)
-            } catch (_: Throwable) {
-                // 窗口已销毁，忽略
-            }
+            } catch (_: Throwable) { }
         }
         topBarLayoutListener = null
-        topBarDialog?.dismiss()
+        try { topBarDialog?.dismiss() } catch (_: Throwable) { }
         topBarDialog = null
         topBarRoot = null
     }
@@ -416,7 +449,7 @@ class MainActivity : BaseActivity() {
         // - 没盖住（窗口顶端 == 状态栏高度）→ 已经让出来了，内边距 = 0。
         // 这样无论 ROM 怎么摆这个窗口，栏高和列表留白都是对的（不会白多一条状态栏的高度）。
         val loc = IntArray(2)
-        topBarDialog?.window?.decorView?.getLocationOnScreen(loc)
+        topBarRoot?.getLocationOnScreen(loc)
         val winTop = loc[1].coerceIn(0, statusTop)
         val pad = statusTop - winTop
         if (root.paddingTop != pad) {
@@ -664,37 +697,50 @@ class MainActivity : BaseActivity() {
         dlg.window?.let { w ->
             w.setDimAmount(0f)
             w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
-            // 不吃焦点、不拦截窗口外的触摸（岛外的滚动 / 点击照常传给下面的列表）
             w.addFlags(
                 android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
                     or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
             )
             w.setGravity(Gravity.BOTTOM)
+            val lp = w.attributes
+            lp.type = android.view.WindowManager.LayoutParams.TYPE_APPLICATION_PANEL
+            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
+                    Configuration.UI_MODE_NIGHT_YES
+            if (!night) {
+                @Suppress("DEPRECATION")
+                lp.systemUiVisibility =
+                    lp.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
+            }
+            w.attributes = lp
             SystemBlur.attach(
                 dlg,
                 resources.getDimensionPixelSize(R.dimen.glass_blur_radius),
                 resources.getDrawable(R.drawable.bg_bottom_nav, theme)
             )
-            // 这扇窗是「最上层应用窗口」，状态栏图标按它上色 —— 所以这里也要点亮，
-            // 否则状态栏时间会变纯白、在浅色顶栏上完全看不见。
-            val night = resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK ==
-                    Configuration.UI_MODE_NIGHT_YES
-            if (!night) {
-                val lp = w.attributes
-                @Suppress("DEPRECATION")
-                lp.systemUiVisibility =
-                    lp.systemUiVisibility or View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR
-                w.attributes = lp
-                androidx.core.view.WindowCompat.getInsetsController(w, w.decorView)
-                    ?.isAppearanceLightStatusBars = true
+        }
+        // PANEL 必须带 Activity token
+        val token = binding.root.windowToken
+        if (token != null) {
+            dlg.window?.attributes?.token = token
+            dlg.show()
+            glassDialog = dlg
+            islandW = 0
+            islandH = 0
+            applyIslandWindowLayout()
+            styleTab()
+        } else {
+            binding.root.post {
+                if (!isDestroyed) {
+                    dlg.window?.attributes?.token = binding.root.windowToken
+                    dlg.show()
+                    glassDialog = dlg
+                    islandW = 0
+                    islandH = 0
+                    applyIslandWindowLayout()
+                    styleTab()
+                }
             }
         }
-        dlg.show()
-        glassDialog = dlg
-        islandW = 0
-        islandH = 0
-        applyIslandWindowLayout()
-        styleTab()
     }
 
     /** 让窗口与「布局内那颗胶囊」的位置、尺寸完全一致 */
@@ -708,10 +754,17 @@ class MainActivity : BaseActivity() {
         lp.width = wantW
         lp.height = wantH
         lp.gravity = Gravity.BOTTOM
-        lp.y = resources.getDimensionPixelSize(R.dimen.island_bottom_gap)
+        lp.y = resources.getDimensionPixelSize(R.dimen.island_bottom_gap) + navInsetPx
         w.attributes = lp
         islandW = wantW
         islandH = wantH
+    }
+
+    private fun removeIslandWindow() {
+        try { glassDialog?.dismiss() } catch (_: Throwable) { }
+        glassDialog = null
+        islandW = 0
+        islandH = 0
     }
 
     private var glassDialog: android.app.Dialog? = null
@@ -771,6 +824,34 @@ class MainActivity : BaseActivity() {
     override fun onResume() {
         super.onResume()
         refresh()
+        // ⚠️ ColorOS/realme 16 黑化修复（2026-09-14 真机实测）：
+        //    顶部玻璃栏独立窗口（Dialog）加入后，其 appearance 变更不会 dispatch 给
+        //    SystemUI 的 StatusBar —— 状态栏图标永远按旧值渲染（浅色模式白图标）。
+        //    系统决策（InsetsPolicy）其实正确（mLastAppearance=LIGHT_STATUS_BARS），
+        //    SystemUI 重启即恢复，但运行中只有**聚焦窗口（主窗口）**的 appearance 变更
+        //    会触发 StatusBar 重渲染。这里在主窗口就绪后制造一次「先清空再点亮」的
+        //    变更事件，强制 StatusBar 重新采样渲染。
+        binding.root.postDelayed({
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                val night = resources.configuration.uiMode and
+                        Configuration.UI_MODE_NIGHT_MASK == Configuration.UI_MODE_NIGHT_YES
+                val light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
+                try {
+                    // ⚠️ ColorOS/realme 16：同一帧内连续两次 setSystemBarsAppearance，
+                    //    第二次会被吞掉（实测只采纳第一次）。所以第一步先设「反值」
+                    //    制造变更事件，第二步**延迟隔帧**再设目标值。
+                    window.insetsController?.setSystemBarsAppearance(
+                        if (night) light else 0,
+                        android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS)
+                    binding.root.postDelayed({
+                        window.insetsController?.setSystemBarsAppearance(
+                            if (night) 0 else light,
+                            android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS)
+                    }, 200L)
+                } catch (_: Throwable) {
+                }
+            }
+        }, 1000L)
         // 用户可能在系统里改了「高级材质」开关或「材质风格」，回到前台时重新对齐
         syncBarMode()
         applyFabPosition()
@@ -786,8 +867,7 @@ class MainActivity : BaseActivity() {
     override fun onDestroy() {
         // 独立窗口要收掉，避免窗口泄漏
         dismissOverflowMenu()
-        glassDialog?.dismiss()
-        glassDialog = null
+        removeIslandWindow()
         dismissTopBar()
         super.onDestroy()
     }
