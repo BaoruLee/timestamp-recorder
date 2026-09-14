@@ -29,6 +29,8 @@
     <color name="glass_stroke">#1A1565C0</color>
     <!-- 工具栏玻璃：刻意留透（75%）—— 时间线底轨要从工具栏底下透出来，屏幕上下才连成一条 -->
     <color name="glass_toolbar">#BFFBF8FF</color>
+    <!-- 「⋮」展开的玻璃卡片：比工具栏稍实一点（80%），菜单里的文字才压得住背后的花花绿绿 -->
+    <color name="glass_menu">#CCF7F4FF</color>
 
     <!-- 事件分类色板（12 色） -->
     <color name="ev_red">#E53935</color>

@@ -17,6 +17,8 @@ import android.view.MenuItem
 import android.view.MotionEvent
 import android.view.View
 import android.view.ViewGroup
+import android.view.ViewTreeObserver
+import android.view.animation.DecelerateInterpolator
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
@@ -30,7 +32,9 @@ import com.timestamp.recorder.databinding.DialogEditEventBinding
 import com.timestamp.recorder.databinding.ItemEventBinding
 import com.timestamp.recorder.databinding.ItemTimelineCapBinding
 import com.timestamp.recorder.databinding.ItemTimelineMonthBinding
+import com.timestamp.recorder.databinding.ItemOverflowRowBinding
 import com.timestamp.recorder.databinding.ItemTimelineRecordBinding
+import com.timestamp.recorder.databinding.ViewOverflowMenuBinding
 import java.util.Calendar
 import java.util.Collections
 import java.util.Locale
@@ -214,16 +218,15 @@ class MainActivity : BaseActivity() {
      * 模糊交给系统合成器；同时把布局里的 AppBar 收起来，列表于是会一直铺到屏幕顶端，
      * 滚动时内容就从玻璃栏底下穿过去。
      *
-     * 附带影响：右上角「⋮」（设置 / 统计 / 教程）跟着搬进这个窗口 —— 用 PopupMenu 呈现，
-     * 动作仍走 [handleMenuAction]，与原来的 options menu 共用一套逻辑。
+     * 附带影响：右上角「⋮」（设置 / 统计 / 教程）跟着搬进这个窗口 —— 菜单本身也是一扇
+     * 独立的玻璃窗口（见 [showOverflowMenu]），动作仍走 [handleMenuAction]，
+     * 与原来的 options menu 共用一套逻辑。
      */
     private fun syncTopBar() {
         val want = if (SystemBlur.isUsable(this)) MODE_WINDOW_BLUR else MODE_STATIC
         if (want != topBarMode) {
             topBarMode = want
-            topBarDialog?.dismiss()
-            topBarDialog = null
-            topBarRoot = null
+            dismissTopBar()
             if (want == MODE_WINDOW_BLUR) {
                 binding.appBar.visibility = View.GONE
                 buildTopBarWindow()
@@ -278,43 +281,86 @@ class MainActivity : BaseActivity() {
         topBarDialog = dlg
         // 布局完成后再算实际高度（那一刻 insets / 测量才可靠）
         dlg.window?.decorView?.post { applyTopBarInsets() }
+        // 每次布局完都对一次：show() 刚返回时窗口还没测量（量到的高度偏小），列表留白会算少，
+        // 首个事件就被压在玻璃底下。等布局稳定后再量一次就能对上（值不变时不会重复写回）。
+        val obs = dlg.window?.decorView?.viewTreeObserver
+        if (obs != null && obs.isAlive) {
+            val l = object : ViewTreeObserver.OnGlobalLayoutListener {
+                override fun onGlobalLayout() = applyTopBarInsets()
+            }
+            topBarLayoutListener = l
+            obs.addOnGlobalLayoutListener(l)
+        }
+    }
+
+    /** 收掉顶部玻璃栏窗口（连同布局监听，避免泄漏） */
+    private fun dismissTopBar() {
+        topBarLayoutListener?.let { l ->
+            try {
+                val obs = topBarDialog?.window?.decorView?.viewTreeObserver
+                if (obs != null && obs.isAlive) obs.removeOnGlobalLayoutListener(l)
+            } catch (_: Throwable) {
+                // 窗口已销毁，忽略
+            }
+        }
+        topBarLayoutListener = null
+        topBarDialog?.dismiss()
+        topBarDialog = null
+        topBarRoot = null
     }
 
     /**
      * 玻璃顶栏盖住了状态栏 + 标题栏，所以：
      * - 窗口内加「状态栏高度」的上内边距（标题落到状态栏之下）；
-     * - 事件列表按窗口实际高度留白（首条不被压在玻璃下）；
+     * - 事件列表按**玻璃栏下沿在屏幕上的位置**留白（首条不被压在玻璃下）；
      * - 时间线列表**不留白**：让「起笔」那一段从屏幕最顶端开始，彩色竖线才能从玻璃底下顶上来。
      */
     private fun applyTopBarInsets() {
+        if (topBarMode != MODE_WINDOW_BLUR || topBarRoot == null) {
+            restoreTopPadding()
+            return
+        }
         val root = topBarRoot ?: return
         val statusTop = androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
             ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
 
         // 窗口到底盖没盖住状态栏，不能靠猜：直接看它的真实屏幕位置。
-        // - 盖住了（contentTop == 0）→ 标题要往下让出状态栏，内边距 = 状态栏高度；
-        // - 没盖住（contentTop == 状态栏高度）→ 已经让出来了，内边距 = 0。
+        // - 盖住了（窗口顶端 == 0）→ 标题要往下让出状态栏，内边距 = 状态栏高度；
+        // - 没盖住（窗口顶端 == 状态栏高度）→ 已经让出来了，内边距 = 0。
         // 这样无论 ROM 怎么摆这个窗口，栏高和列表留白都是对的（不会白多一条状态栏的高度）。
         val loc = IntArray(2)
         topBarDialog?.window?.decorView?.getLocationOnScreen(loc)
-        val pad = (statusTop - loc[1]).coerceAtLeast(0)
+        val winTop = loc[1].coerceIn(0, statusTop)
+        val pad = statusTop - winTop
         if (root.paddingTop != pad) {
             root.setPadding(root.paddingLeft, pad, root.paddingRight, root.paddingBottom)
         }
 
         val winH = measureTopBarHeight()
-        // 玻璃栏底边相对「内容区顶端」的距离 = 窗口内容高 - 已让出的那部分
-        val barBottom = (winH - pad).coerceAtLeast(0)
+        // ⚠️ 列表要的留白 = 玻璃栏**下沿**在屏幕上的位置，也就是「窗口顶端 + 窗口高」。
+        // 之前只算了「内容高」（winH - pad），等于漏掉了被罩住的那条状态栏 ——
+        // 留白少了一整个状态栏高度，于是第一个事件直接被额头压住。
+        // 再兜一层底线（状态栏 + 一栏工具栏）：万一某帧量到的窗口位置还不准，也不会压到内容。
+        val minCover = statusTop + resources.getDimensionPixelSize(R.dimen.top_bar_height)
+        val covered = (winTop + winH).coerceAtLeast(minCover)
+        // 留白要相对「内容区原点」算，而不是假设列表恰好从 y=0 开始 —— 少一层假设，少一处坑。
+        // 用 binding.root 而不是列表本身：列表在另一个 Tab 下是 GONE 的，GONE 的 view 量不到位置。
+        val hostLoc = IntArray(2)
+        binding.root.getLocationOnScreen(hostLoc)
         val gap = resources.getDimensionPixelSize(R.dimen.space_2)
-        if (topBarMode == MODE_WINDOW_BLUR && winH > 0 && barBottom > 0) {
-            binding.recyclerEvents.applyTopPadding(barBottom + gap)
+        val base = (covered - hostLoc[1]).coerceAtLeast(0)
+        if (winH > 0 && covered > 0) {
+            binding.recyclerEvents.applyTopPadding(base + gap)
             binding.recyclerTimeline.applyTopPadding(0)
-            applyEmptyTopPadding(barBottom + gap * 3)
-        } else if (topBarMode == MODE_STATIC) {
-            binding.recyclerEvents.applyTopPadding(origListTopPadding)
-            binding.recyclerTimeline.applyTopPadding(origListTopPadding)
-            applyEmptyTopPadding(origEmptyTopMargin)
+            applyEmptyTopPadding(base + gap * 3)
         }
+    }
+
+    /** 退出玻璃顶栏（如系统关掉高级材质）时，把列表留白还回布局里原本的值 */
+    private fun restoreTopPadding() {
+        binding.recyclerEvents.applyTopPadding(origListTopPadding)
+        binding.recyclerTimeline.applyTopPadding(origListTopPadding)
+        applyEmptyTopPadding(origEmptyTopMargin)
     }
 
     /**
@@ -348,14 +394,118 @@ class MainActivity : BaseActivity() {
         if (paddingTop != px) setPadding(paddingLeft, px, paddingRight, paddingBottom)
     }
 
-    /** 右上角「⋮」弹出的菜单：与 options menu 共用同一套动作 */
+    /**
+     * 右上角「⋮」的菜单。
+     *
+     * ⚠️ 刻意**不用**系统 PopupMenu：
+     * 1. 它的位置是按「锚点所在窗口」推算的，而这里的锚点在一扇 NO_LIMITS 的独立窗口里 ——
+     *    实测菜单会整个甩到屏幕外面去；
+     * 2. 系统那套白底 / 直角 / 无图标的样式，跟我们这套玻璃语言根本不是一个东西。
+     *
+     * 所以自己来：一块同样跑在**独立窗口**里的玻璃卡片（模糊照样交给系统合成器，App 端零开销），
+     * 位置按「按钮在屏幕上的真实坐标」算并**夹在屏幕内**，从按钮那一角缩放淡入。
+     * 动作仍走 [handleMenuAction]，和 options menu 共用一套逻辑。
+     */
     private fun showOverflowMenu(anchor: View) {
-        val popup = androidx.appcompat.widget.PopupMenu(this, anchor)
-        popup.menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.menu_settings)
-        popup.menu.add(Menu.NONE, MENU_STATS, 0, R.string.menu_stats)
-        popup.menu.add(Menu.NONE, MENU_TUTORIAL, 0, R.string.menu_tutorial)
-        popup.setOnMenuItemClickListener { handleMenuAction(it.itemId) }
-        popup.show()
+        dismissOverflowMenu()
+        val dlg = android.app.Dialog(this, R.style.Theme_Timestamp_GlassBar)
+        val b = ViewOverflowMenuBinding.inflate(layoutInflater)
+        dlg.setContentView(b.root)
+        dlg.setCancelable(true)
+        dlg.setCanceledOnTouchOutside(true)
+        dlg.setOnDismissListener { tintMenuAnchor(anchor, false) }
+
+        bindMenuRow(b.rowSettings, R.drawable.ic_menu_settings, R.string.menu_settings, MENU_SETTINGS)
+        bindMenuRow(b.rowStats, R.drawable.ic_menu_stats, R.string.menu_stats, MENU_STATS)
+        bindMenuRow(b.rowTutorial, R.drawable.ic_menu_tutorial, R.string.menu_tutorial, MENU_TUTORIAL)
+
+        // 位置：右边缘贴着按钮、整体夹在屏幕内（8dp 安全边距），绝不顶出画面
+        val m = resources.getDimensionPixelSize(R.dimen.space_2)
+        val menuW = resources.getDimensionPixelSize(R.dimen.overflow_menu_width)
+        val maxX = (resources.displayMetrics.widthPixels - menuW - m).coerceAtLeast(m)
+        val loc = IntArray(2)
+        anchor.getLocationOnScreen(loc)
+        val x = (loc[0] + anchor.width - menuW + m).coerceIn(m, maxX)
+        // 上沿落在按钮下方一点点：看起来像从「⋮」里长出来，又不会压住那一行
+        val y = (loc[1] + anchor.height + m).coerceAtLeast(m)
+
+        dlg.window?.let { w ->
+            w.setDimAmount(0f)
+            w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            // 不吃焦点、不拦窗口外的触摸；WATCH_OUTSIDE_TOUCH 让「点空白处」也能收起菜单
+            w.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    or android.view.WindowManager.LayoutParams.FLAG_WATCH_OUTSIDE_TOUCH
+                    or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+            )
+            // 模糊区域由「窗口背景」推导，所以这块可见的玻璃必须给到窗口上（内容本身不带背景）
+            val bg = resources.getDrawable(R.drawable.bg_overflow_menu, theme)
+            if (SystemBlur.isUsable(this)) {
+                SystemBlur.attach(
+                    dlg, resources.getDimensionPixelSize(R.dimen.glass_blur_radius), bg)
+            } else {
+                w.setBackgroundDrawable(bg)
+            }
+            w.setGravity(Gravity.TOP or Gravity.START)
+            val lp = w.attributes
+            lp.width = android.view.WindowManager.LayoutParams.WRAP_CONTENT
+            lp.height = android.view.WindowManager.LayoutParams.WRAP_CONTENT
+            lp.x = x
+            lp.y = y
+            w.attributes = lp
+        }
+
+        // 从右上角那颗按钮的方向展开（宽度已知，不必等测量）
+        b.root.pivotX = menuW.toFloat()
+        b.root.pivotY = 0f
+        b.root.alpha = 0f
+        b.root.scaleX = 0.88f
+        b.root.scaleY = 0.88f
+        dlg.show()
+        b.root.animate().alpha(1f).scaleX(1f).scaleY(1f)
+            .setDuration(190L)
+            .setInterpolator(DecelerateInterpolator())
+            .start()
+
+        overflowDialog = dlg
+        tintMenuAnchor(anchor, true)
+    }
+
+    private fun bindMenuRow(
+        row: ItemOverflowRowBinding,
+        icon: Int,
+        label: Int,
+        action: Int
+    ) {
+        row.rowIcon.setImageResource(icon)
+        row.rowText.setText(label)
+        row.rowRoot.setOnClickListener {
+            dismissOverflowMenu()
+            handleMenuAction(action)
+        }
+    }
+
+    /** 菜单展开时把「⋮」点亮（主题色），收起后回到常规颜色 —— 让人知道菜单是从哪冒出来的 */
+    private fun tintMenuAnchor(anchor: View, open: Boolean) {
+        (anchor as? android.widget.ImageView)?.imageTintList =
+            ColorStateList.valueOf(if (open) menuAccent else menuIconTint)
+    }
+
+    private fun dismissOverflowMenu() {
+        overflowDialog?.dismiss()
+        overflowDialog = null
+    }
+
+    private var overflowDialog: android.app.Dialog? = null
+
+    private val menuIconTint: Int by lazy {
+        com.google.android.material.color.MaterialColors.getColor(
+            binding.root, com.google.android.material.R.attr.colorOnSurface)
+    }
+    private val menuAccent: Int by lazy {
+        com.google.android.material.color.MaterialColors.getColor(
+            binding.root, com.google.android.material.R.attr.colorPrimary)
     }
 
     private fun handleMenuAction(id: Int): Boolean = when (id) {
@@ -367,6 +517,7 @@ class MainActivity : BaseActivity() {
 
     private var topBarDialog: android.app.Dialog? = null
     private var topBarRoot: View? = null
+    private var topBarLayoutListener: ViewTreeObserver.OnGlobalLayoutListener? = null
 
     /** 顶部玻璃栏是否生效（-1 = 尚未定过） */
     private var topBarMode = -1
@@ -477,12 +628,18 @@ class MainActivity : BaseActivity() {
         WidgetRecordHelper.refreshAll(this)
     }
 
+    override fun onPause() {
+        // 「⋮」菜单是个独立窗口，Activity 退到后台时它不会被自动收掉，这里手动关
+        dismissOverflowMenu()
+        super.onPause()
+    }
+
     override fun onDestroy() {
         // 独立窗口要收掉，避免窗口泄漏
+        dismissOverflowMenu()
         glassDialog?.dismiss()
         glassDialog = null
-        topBarDialog?.dismiss()
-        topBarDialog = null
+        dismissTopBar()
         super.onDestroy()
     }
 

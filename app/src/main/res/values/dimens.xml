@@ -34,4 +34,7 @@
 
     <!-- 顶部工具栏（独立玻璃窗口版）高度 -->
     <dimen name="top_bar_height">56dp</dimen>
+
+    <!-- 右上角「⋮」玻璃菜单：宽度写死，代码靠它把菜单算在屏幕内（不至于顶出画面） -->
+    <dimen name="overflow_menu_width">188dp</dimen>
 </resources>
