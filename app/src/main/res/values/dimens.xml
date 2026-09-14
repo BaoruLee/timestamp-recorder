@@ -27,4 +27,10 @@
 
     <!-- 时间线竖线距屏幕左边的距离 = 列表 paddingStart 16dp + 线区宽 22dp/2 - 线宽 2dp/2 -->
     <dimen name="timeline_line_inset">26dp</dimen>
+    <!-- 起笔 / 收笔（两头有颜色的那两段空行）：起笔要高过顶部工具栏，颜色才顶得到屏幕顶端 -->
+    <dimen name="timeline_head_height">132dp</dimen>
+    <dimen name="timeline_tail_height">96dp</dimen>
+
+    <!-- 顶部工具栏（独立玻璃窗口版）高度 -->
+    <dimen name="top_bar_height">56dp</dimen>
 </resources>

@@ -28,6 +28,7 @@ import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.timestamp.recorder.databinding.ActivityMainBinding
 import com.timestamp.recorder.databinding.DialogEditEventBinding
 import com.timestamp.recorder.databinding.ItemEventBinding
+import com.timestamp.recorder.databinding.ItemTimelineCapBinding
 import com.timestamp.recorder.databinding.ItemTimelineMonthBinding
 import com.timestamp.recorder.databinding.ItemTimelineRecordBinding
 import java.util.Calendar
@@ -47,11 +48,17 @@ class MainActivity : BaseActivity() {
         private const val TAB_TIMELINE = 1
         private const val TYPE_MONTH = 0
         private const val TYPE_RECORD = 1
+        private const val TYPE_CAP = 2
         /** 底栏形态：布局内的静态胶囊 / 独立窗口 + 系统级背后模糊 */
         private const val MODE_STATIC = 0
         private const val MODE_WINDOW_BLUR = 1
         /** 外部（如详情页菜单）指定直接打开时间线 Tab */
         const val EXTRA_OPEN_TIMELINE = "extra_open_timeline"
+
+        /** 「⋮」菜单的动作 id（options menu 与顶部玻璃栏的 PopupMenu 共用） */
+        private const val MENU_SETTINGS = 1
+        private const val MENU_STATS = 2
+        private const val MENU_TUTORIAL = 3
     }
 
     private lateinit var binding: ActivityMainBinding
@@ -94,6 +101,10 @@ class MainActivity : BaseActivity() {
         binding.recyclerTimeline.adapter = timelineAdapter
 
         binding.fabAdd.setOnClickListener { showEditDialog(null) }
+        // 记下布局里原本的留白：顶部玻璃栏开启 / 关闭时要来回切换
+        origListTopPadding = binding.recyclerEvents.paddingTop
+        origEmptyTopMargin =
+            (binding.tvEmpty.layoutParams as? ViewGroup.MarginLayoutParams)?.topMargin ?: 0
         applyFabPosition()
         setupBottomBar()
         styleTab()
@@ -159,6 +170,7 @@ class MainActivity : BaseActivity() {
      * 因为「高级材质」是**系统设置**，用户可能在我们退到后台时改，所以 onResume 会再调一次。
      */
     private fun syncBarMode() {
+        syncTopBar()
         val want = if (SystemBlur.isUsable(this)) MODE_WINDOW_BLUR else MODE_STATIC
         if (want != barMode) {
             barMode = want
@@ -184,6 +196,172 @@ class MainActivity : BaseActivity() {
 
     /** 底栏当前形态（-1 = 尚未定过，首次必然进入初始化分支） */
     private var barMode = -1
+
+    // ---------------- 顶部玻璃栏（独立窗口 + 系统级模糊） ----------------
+
+    /**
+     * 顶部工具栏也做成「模糊的半透材质」。
+     *
+     * 难点：系统只能模糊**窗口背后**的内容，而列表和工具栏在同一个窗口里 —— 同窗内的内容
+     * 系统没法替我们糊。所以和底部胶囊岛一样，把这一栏搬进一个**独立窗口**（浮在内容之上），
+     * 模糊交给系统合成器；同时把布局里的 AppBar 收起来，列表于是会一直铺到屏幕顶端，
+     * 滚动时内容就从玻璃栏底下穿过去。
+     *
+     * 附带影响：右上角「⋮」（设置 / 统计 / 教程）跟着搬进这个窗口 —— 用 PopupMenu 呈现，
+     * 动作仍走 [handleMenuAction]，与原来的 options menu 共用一套逻辑。
+     */
+    private fun syncTopBar() {
+        val want = if (SystemBlur.isUsable(this)) MODE_WINDOW_BLUR else MODE_STATIC
+        if (want != topBarMode) {
+            topBarMode = want
+            topBarDialog?.dismiss()
+            topBarDialog = null
+            topBarRoot = null
+            if (want == MODE_WINDOW_BLUR) {
+                binding.appBar.visibility = View.GONE
+                buildTopBarWindow()
+            } else {
+                binding.appBar.visibility = View.VISIBLE
+            }
+        }
+        applyTopBarInsets()
+    }
+
+    private fun buildTopBarWindow() {
+        val dlg = android.app.Dialog(this, R.style.Theme_Timestamp_GlassBar)
+        val content = layoutInflater.inflate(R.layout.view_top_bar, null)
+        dlg.setContentView(content)
+        dlg.setCancelable(false)
+        dlg.setCanceledOnTouchOutside(false)
+        topBarRoot = content
+        content.findViewById<View>(R.id.btnMore)?.setOnClickListener { showOverflowMenu(it) }
+
+        dlg.window?.let { w ->
+            w.setDimAmount(0f)
+            w.clearFlags(android.view.WindowManager.LayoutParams.FLAG_DIM_BEHIND)
+            // 不吃焦点、不拦截窗口外的触摸；LAYOUT_IN_SCREEN 才能从屏幕最顶端（含状态栏）垂下来
+            w.addFlags(
+                android.view.WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
+                    or android.view.WindowManager.LayoutParams.FLAG_NOT_TOUCH_MODAL
+                    or android.view.WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+            )
+            w.setGravity(Gravity.TOP)
+            val lp = w.attributes
+            lp.width = android.view.WindowManager.LayoutParams.MATCH_PARENT
+            lp.height = android.view.WindowManager.LayoutParams.WRAP_CONTENT
+            // ⚠️ 关键：不能让窗口被系统栏再挤一次。默认会按 statusBars 内缩，
+            // 于是玻璃栏掉到状态栏之下（原 AppBar 是罩着状态栏的，观感会退步）。
+            if (android.os.Build.VERSION.SDK_INT >= 30) {
+                lp.fitInsetsTypes = 0
+                lp.fitInsetsSides = 0
+            }
+            w.attributes = lp
+            SystemBlur.attach(
+                dlg,
+                resources.getDimensionPixelSize(R.dimen.glass_blur_radius),
+                resources.getDrawable(R.drawable.bg_top_bar, theme)
+            )
+        }
+        dlg.show()
+        topBarDialog = dlg
+        // 布局完成后再算实际高度（那一刻 insets / 测量才可靠）
+        dlg.window?.decorView?.post { applyTopBarInsets() }
+    }
+
+    /**
+     * 玻璃顶栏盖住了状态栏 + 标题栏，所以：
+     * - 窗口内加「状态栏高度」的上内边距（标题落到状态栏之下）；
+     * - 事件列表按窗口实际高度留白（首条不被压在玻璃下）；
+     * - 时间线列表**不留白**：让「起笔」那一段从屏幕最顶端开始，彩色竖线才能从玻璃底下顶上来。
+     */
+    private fun applyTopBarInsets() {
+        val root = topBarRoot ?: return
+        val statusTop = androidx.core.view.ViewCompat.getRootWindowInsets(binding.root)
+            ?.getInsets(androidx.core.view.WindowInsetsCompat.Type.statusBars())?.top ?: 0
+
+        // 窗口到底盖没盖住状态栏，不能靠猜：直接看它的真实屏幕位置。
+        // - 盖住了（contentTop == 0）→ 标题要往下让出状态栏，内边距 = 状态栏高度；
+        // - 没盖住（contentTop == 状态栏高度）→ 已经让出来了，内边距 = 0。
+        // 这样无论 ROM 怎么摆这个窗口，栏高和列表留白都是对的（不会白多一条状态栏的高度）。
+        val loc = IntArray(2)
+        topBarDialog?.window?.decorView?.getLocationOnScreen(loc)
+        val pad = (statusTop - loc[1]).coerceAtLeast(0)
+        if (root.paddingTop != pad) {
+            root.setPadding(root.paddingLeft, pad, root.paddingRight, root.paddingBottom)
+        }
+
+        val winH = measureTopBarHeight()
+        // 玻璃栏底边相对「内容区顶端」的距离 = 窗口内容高 - 已让出的那部分
+        val barBottom = (winH - pad).coerceAtLeast(0)
+        val gap = resources.getDimensionPixelSize(R.dimen.space_2)
+        if (topBarMode == MODE_WINDOW_BLUR && winH > 0 && barBottom > 0) {
+            binding.recyclerEvents.applyTopPadding(barBottom + gap)
+            binding.recyclerTimeline.applyTopPadding(0)
+            applyEmptyTopPadding(barBottom + gap * 3)
+        } else if (topBarMode == MODE_STATIC) {
+            binding.recyclerEvents.applyTopPadding(origListTopPadding)
+            binding.recyclerTimeline.applyTopPadding(origListTopPadding)
+            applyEmptyTopPadding(origEmptyTopMargin)
+        }
+    }
+
+    /**
+     * 顶栏窗口的实际高度。
+     * ⚠️ 不能用 `decorView.height` 一把梭：窗口刚 show() 时它还是 0，
+     * 那样列表留白就永远补不上、首条会被压在玻璃底下。测不到就自己量一次。
+     */
+    private fun measureTopBarHeight(): Int {
+        val v = topBarRoot ?: return 0
+        if (v.height > 0) return v.height
+        val w = binding.root.width.takeIf { it > 0 } ?: resources.displayMetrics.widthPixels
+        v.measure(
+            View.MeasureSpec.makeMeasureSpec(w, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED)
+        )
+        return v.measuredHeight
+    }
+
+    private fun applyEmptyTopPadding(px: Int) {
+        for (v in listOf(binding.tvEmpty, binding.tvEmptyTimeline)) {
+            (v.layoutParams as? ViewGroup.MarginLayoutParams)?.let { lp ->
+                if (lp.topMargin != px) {
+                    lp.topMargin = px
+                    v.layoutParams = lp
+                }
+            }
+        }
+    }
+
+    private fun View.applyTopPadding(px: Int) {
+        if (paddingTop != px) setPadding(paddingLeft, px, paddingRight, paddingBottom)
+    }
+
+    /** 右上角「⋮」弹出的菜单：与 options menu 共用同一套动作 */
+    private fun showOverflowMenu(anchor: View) {
+        val popup = androidx.appcompat.widget.PopupMenu(this, anchor)
+        popup.menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.menu_settings)
+        popup.menu.add(Menu.NONE, MENU_STATS, 0, R.string.menu_stats)
+        popup.menu.add(Menu.NONE, MENU_TUTORIAL, 0, R.string.menu_tutorial)
+        popup.setOnMenuItemClickListener { handleMenuAction(it.itemId) }
+        popup.show()
+    }
+
+    private fun handleMenuAction(id: Int): Boolean = when (id) {
+        MENU_SETTINGS -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
+        MENU_STATS -> { startActivity(Intent(this, StatsActivity::class.java)); true }
+        MENU_TUTORIAL -> { openExternalUrl(Links.TUTORIAL); true }
+        else -> false
+    }
+
+    private var topBarDialog: android.app.Dialog? = null
+    private var topBarRoot: View? = null
+
+    /** 顶部玻璃栏是否生效（-1 = 尚未定过） */
+    private var topBarMode = -1
+
+    // 布局里原本的留白，退出玻璃顶栏（如系统关掉高级材质）时要还原
+    private var origListTopPadding = 0
+    private var origEmptyTopMargin = 0
 
     /**
      * 胶囊岛独立窗口 + 系统级「窗口背景模糊」（HyperOS 高级材质）。
@@ -291,6 +469,8 @@ class MainActivity : BaseActivity() {
         // 独立窗口要收掉，避免窗口泄漏
         glassDialog?.dismiss()
         glassDialog = null
+        topBarDialog?.dismiss()
+        topBarDialog = null
         super.onDestroy()
     }
 
@@ -314,6 +494,8 @@ class MainActivity : BaseActivity() {
                 val nav = insets.getInsets(androidx.core.view.WindowInsetsCompat.Type.navigationBars()).bottom
                 binding.root.setPadding(0, 0, 0, 0)
                 applyBarLayout(nav)
+                // 状态栏高度此时才是准的：顶部玻璃栏的上内边距 / 列表留白要重算
+                applyTopBarInsets()
             }
         }
     }
@@ -416,20 +598,14 @@ class MainActivity : BaseActivity() {
     // ---------- 菜单（设置 + 统计 + 教程；时间线走底部 Tab） ----------
 
     override fun onCreateOptionsMenu(menu: Menu): Boolean {
-        menu.add(Menu.NONE, 1, 0, R.string.menu_settings)
-        menu.add(Menu.NONE, 2, 0, R.string.menu_stats)
-        menu.add(Menu.NONE, 3, 0, R.string.menu_tutorial)
+        menu.add(Menu.NONE, MENU_SETTINGS, 0, R.string.menu_settings)
+        menu.add(Menu.NONE, MENU_STATS, 0, R.string.menu_stats)
+        menu.add(Menu.NONE, MENU_TUTORIAL, 0, R.string.menu_tutorial)
         return true
     }
 
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            1 -> { startActivity(Intent(this, SettingsActivity::class.java)); true }
-            2 -> { startActivity(Intent(this, StatsActivity::class.java)); true }
-            3 -> { openExternalUrl(Links.TUTORIAL); true }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
+    override fun onOptionsItemSelected(item: MenuItem): Boolean =
+        handleMenuAction(item.itemId) || super.onOptionsItemSelected(item)
 
     private fun refresh() {
         dragEnabled = currentSortMode() == SettingsActivity.SORT_MANUAL
@@ -591,6 +767,9 @@ class MainActivity : BaseActivity() {
     private sealed class TimelineItem {
         data class Month(val key: MonthKey, val count: Int) : TimelineItem()
         data class Record(val rec: TimelineRecord) : TimelineItem()
+
+        /** 起笔 / 收笔：列表最上、最下那一段「有颜色的空行」，让时间线的两头不至于没颜色 */
+        data class Cap(val color: Int, val head: Boolean) : TimelineItem()
     }
 
     private inner class TimelineAdapter : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
@@ -617,13 +796,25 @@ class MainActivity : BaseActivity() {
                 items.addAll(list.map { TimelineItem.Record(it) })
             }
             // 从后往前推：月份取紧随其后那条记录的颜色
-            colors = IntArray(items.size)
+            var cols = IntArray(items.size)
             for (i in items.indices.reversed()) {
-                colors[i] = when (val it = items[i]) {
+                cols[i] = when (val it = items[i]) {
                     is TimelineItem.Record -> it.rec.eventColor
-                    is TimelineItem.Month -> if (i + 1 < items.size) colors[i + 1] else 0
+                    is TimelineItem.Month -> if (i + 1 < items.size) cols[i + 1] else 0
+                    is TimelineItem.Cap -> it.color
                 }
             }
+            // 两头各补一段起笔 / 收笔：颜色沿用「最新那条」与「最旧那条」
+            if (cols.isNotEmpty()) {
+                items.add(0, TimelineItem.Cap(cols.first(), head = true))
+                items.add(TimelineItem.Cap(cols.last(), head = false))
+                cols = IntArray(cols.size + 2).also {
+                    it[0] = cols.first()
+                    System.arraycopy(cols, 0, it, 1, cols.size)
+                    it[it.size - 1] = cols.last()
+                }
+            }
+            colors = cols
             notifyDataSetChanged()
         }
 
@@ -631,15 +822,18 @@ class MainActivity : BaseActivity() {
         private fun prevColor(position: Int): Int? =
             if (position > 0 && colors[position - 1] != 0) colors[position - 1] else null
 
-        override fun getItemViewType(position: Int): Int =
-            if (items[position] is TimelineItem.Month) TYPE_MONTH else TYPE_RECORD
+        override fun getItemViewType(position: Int): Int = when (items[position]) {
+            is TimelineItem.Month -> TYPE_MONTH
+            is TimelineItem.Record -> TYPE_RECORD
+            is TimelineItem.Cap -> TYPE_CAP
+        }
 
         override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
             val inflater = LayoutInflater.from(parent.context)
-            return if (viewType == TYPE_MONTH) {
-                MonthVH(ItemTimelineMonthBinding.inflate(inflater, parent, false))
-            } else {
-                RecordVH(ItemTimelineRecordBinding.inflate(inflater, parent, false))
+            return when (viewType) {
+                TYPE_MONTH -> MonthVH(ItemTimelineMonthBinding.inflate(inflater, parent, false))
+                TYPE_CAP -> CapVH(ItemTimelineCapBinding.inflate(inflater, parent, false))
+                else -> RecordVH(ItemTimelineRecordBinding.inflate(inflater, parent, false))
             }
         }
 
@@ -649,6 +843,22 @@ class MainActivity : BaseActivity() {
             when (val item = items[position]) {
                 is TimelineItem.Month -> (holder as MonthVH).bind(item, position)
                 is TimelineItem.Record -> (holder as RecordVH).bind(item.rec, position)
+                is TimelineItem.Cap -> (holder as CapVH).bind(item, position)
+            }
+        }
+
+        inner class CapVH(private val b: ItemTimelineCapBinding) : RecyclerView.ViewHolder(b.root) {
+            fun bind(item: TimelineItem.Cap, position: Int) {
+                b.root.layoutParams = b.root.layoutParams.apply {
+                    height = resources.getDimensionPixelSize(
+                        if (item.head) R.dimen.timeline_head_height else R.dimen.timeline_tail_height
+                    )
+                }
+                b.vLine.setLine(
+                    prevColor(position),
+                    if (item.color != 0) item.color else colors.getOrElse(position) { 0 },
+                    if (item.head) TimelineLineView.Mode.HEAD else TimelineLineView.Mode.TAIL
+                )
             }
         }
 
@@ -656,15 +866,15 @@ class MainActivity : BaseActivity() {
             fun bind(item: TimelineItem.Month, position: Int) {
                 b.tvMonth.text = item.key.label
                 b.tvMonthCount.text = getString(R.string.timeline_month_count, item.count)
-                // 竖线：与上下相邻记录之间做颜色渐变（月份行不再是灰色，而是接住该月的颜色）
+                // 竖线：顶部一小段内从上一条的颜色过渡到自己的（月份行也不再是灰色）
                 val own = colors[position]
-                b.vLine.background = TimelineLine.gradient(prevColor(position), own)
+                b.vLine.setLine(prevColor(position), own)
                 // 刻度点：该月颜色（半透明，弱于记录节点）；无颜色时退回次要色
                 val dim = com.google.android.material.color.MaterialColors.getColor(
                     b.root, com.google.android.material.R.attr.colorOnSurfaceVariant)
                 b.vDot.background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
-                    setColor(if (own != 0) TimelineLine.withAlpha(own, 0x99) else dim)
+                    setColor(if (own != 0) withAlpha(own, 0x99) else dim)
                 }
             }
         }
@@ -674,8 +884,8 @@ class MainActivity : BaseActivity() {
                 b.tvEventName.text = rec.eventName
                 b.tvTime.text = TimeFormat.short(rec.millis)
                 b.tvRelative.text = TimeFormat.relative(this@MainActivity, rec.millis)
-                // 竖线：从上一条的颜色渐变到本条的，条与条之间不再硬切
-                b.vLine.background = TimelineLine.gradient(prevColor(position), rec.eventColor)
+                // 竖线：顶部一小段内从上一条的颜色过渡到本条的，条与条之间不再硬切
+                b.vLine.setLine(prevColor(position), rec.eventColor)
                 // 节点：本记录的事件色（实心，作为「这一刻」的标记）
                 b.vDot.background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL

@@ -77,6 +77,7 @@
 
     <!-- 设置 -->
     <string name="menu_settings">设置</string>
+    <string name="menu_more">更多</string>
     <string name="settings_title">设置</string>
     <string name="fab_position_label">快捷按钮位置</string>
     <string name="fab_position_hint">「+」快捷按钮可在底部左、中、右三档切换</string>
