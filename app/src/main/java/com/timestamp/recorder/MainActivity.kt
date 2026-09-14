@@ -150,13 +150,11 @@ class MainActivity : BaseActivity() {
     private val pageCallback = object : ViewPager2.OnPageChangeCallback() {
         override fun onPageScrolled(position: Int, positionOffset: Float, offsetPx: Int) {
             moveSlider(position + positionOffset)
-            // 「＋」按钮只属于「事件」页：跟着滑动一起渐隐 / 渐现并往下沉，
-            // 滑过一半就禁点（不可见还能点中就是 bug）；反向拖回来会跟着回来。
-            val fade = if (position == 0) positionOffset else 1f - positionOffset
-            binding.fabAdd.alpha = 1f - fade
-            binding.fabAdd.translationY =
-                fade * resources.getDimensionPixelSize(R.dimen.space_6)
-            binding.fabAdd.isClickable = fade < 0.5f
+            // 「＋」贴在「事件」页上：随页面一起平移（滑向时间线时被带出屏幕左侧），
+            // 跟手、可急停、可反向 —— 和页面内容是同一个运动方程，不再单独做渐隐。
+            val fraction = position + positionOffset
+            binding.fabAdd.translationX = -fraction * binding.viewPager.width
+            binding.fabAdd.isClickable = fraction < 0.5f
         }
         override fun onPageSelected(position: Int) {
             if (currentTab != position) {

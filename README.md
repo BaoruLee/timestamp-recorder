@@ -268,6 +268,9 @@
 
 ## 🔨 构建
 
+> 参与开发（含 AI 助手）请先读 **[CONTRIBUTING.md](CONTRIBUTING.md)**：版本号语义、
+> 文档三同步、发版自查清单都在里面；AI 协作另见 `AGENTS.md`。
+
 ```powershell
 .\gradlew.bat assembleRelease
 ```
