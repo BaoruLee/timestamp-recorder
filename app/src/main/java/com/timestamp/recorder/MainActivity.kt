@@ -317,6 +317,7 @@ class MainActivity : BaseActivity() {
      */
     private fun applyTopBarInsets() {
         if (topBarMode != MODE_WINDOW_BLUR || topBarRoot == null) {
+            topBarBottomPx = 0
             restoreTopPadding()
             return
         }
@@ -349,6 +350,8 @@ class MainActivity : BaseActivity() {
         binding.root.getLocationOnScreen(hostLoc)
         val gap = resources.getDimensionPixelSize(R.dimen.space_2)
         val base = (covered - hostLoc[1]).coerceAtLeast(0)
+        // 记下玻璃栏下沿：「⋮」菜单要挂在这里往下展开
+        topBarBottomPx = covered
         if (winH > 0 && covered > 0) {
             binding.recyclerEvents.applyTopPadding(base + gap)
             binding.recyclerTimeline.applyTopPadding(0)
@@ -426,8 +429,14 @@ class MainActivity : BaseActivity() {
         val loc = IntArray(2)
         anchor.getLocationOnScreen(loc)
         val x = (loc[0] + anchor.width - menuW + m).coerceIn(m, maxX)
-        // 上沿落在按钮下方一点点：看起来像从「⋮」里长出来，又不会压住那一行
-        val y = (loc[1] + anchor.height + m).coerceAtLeast(m)
+        // 上沿挂在**玻璃栏的下沿**下面一点点，而不是按钮正下方 ——
+        // 「⋮」在栏内部，栏下面还有一行副标题，从按钮底下展开会整块盖住副标题。
+        // 于是菜单看起来是从这块玻璃里长出来的（缩放原点也在右上角，正对按钮）。
+        val y = if (topBarBottomPx > 0) {
+            topBarBottomPx + m
+        } else {
+            (loc[1] + anchor.height + m).coerceAtLeast(m)
+        }
 
         dlg.window?.let { w ->
             w.setDimAmount(0f)
@@ -521,6 +530,9 @@ class MainActivity : BaseActivity() {
 
     /** 顶部玻璃栏是否生效（-1 = 尚未定过） */
     private var topBarMode = -1
+
+    /** 玻璃顶栏**下沿**在屏幕上的 y（「⋮」菜单要挂在这里往下展开；0 = 还没测到） */
+    private var topBarBottomPx = 0
 
     // 布局里原本的留白，退出玻璃顶栏（如系统关掉高级材质）时要还原
     private var origListTopPadding = 0
@@ -743,10 +755,14 @@ class MainActivity : BaseActivity() {
                     setColor(fill)
                 }, insetH, insetV, insetH, insetV
             )
-            tv.setTextColor(if (night) 0xFFEDEAF3.toInt() else 0xFF16181C.toInt())
+            val text = if (night) 0xFFEDEAF3.toInt() else 0xFF16181C.toInt()
+            tv.setTextColor(text)
+            // 图标跟文字同色：选中 = 近白/近黑，未选中 = 次要色（tint 走 compound drawable）
+            tv.compoundDrawableTintList = ColorStateList.valueOf(text)
         } else {
             tv.background = null
             tv.setTextColor(tabOnSurfaceVariant)
+            tv.compoundDrawableTintList = ColorStateList.valueOf(tabOnSurfaceVariant)
         }
     }
 

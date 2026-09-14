@@ -145,11 +145,15 @@
             android:paddingStart="8dp"
             android:paddingEnd="8dp">
 
+            <!-- 与独立窗口版（view_bottom_nav.xml）保持一致：图标 + 文字，tint 由 setTabLook 控制 -->
             <TextView
                 android:id="@+id/tabEvents"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
+                android:drawableStart="@drawable/ic_tab_events"
+                android:drawablePadding="8dp"
+                android:drawableTint="?attr/colorOnSurfaceVariant"
                 android:gravity="center"
                 android:text="@string/tab_events"
                 android:textSize="15sp" />
@@ -159,6 +163,9 @@
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_weight="1"
+                android:drawableStart="@drawable/ic_tab_timeline"
+                android:drawablePadding="8dp"
+                android:drawableTint="?attr/colorOnSurfaceVariant"
                 android:gravity="center"
                 android:text="@string/tab_timeline"
                 android:textSize="15sp" />

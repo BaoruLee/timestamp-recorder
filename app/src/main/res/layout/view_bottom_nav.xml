@@ -16,11 +16,16 @@
         android:paddingStart="4dp"
         android:paddingEnd="4dp">
 
+        <!-- 图标用 TextView 的 compound drawable：不改结构，选中态的背景胶囊与文字色
+             照旧由 setTabLook() 处理，图标 tint 也在那里跟着选中态一起换。 -->
         <TextView
             android:id="@+id/tabEvents"
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:drawableStart="@drawable/ic_tab_events"
+            android:drawablePadding="8dp"
+            android:drawableTint="?attr/colorOnSurfaceVariant"
             android:gravity="center"
             android:text="@string/tab_events"
             android:textSize="15sp" />
@@ -30,6 +35,9 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
+            android:drawableStart="@drawable/ic_tab_timeline"
+            android:drawablePadding="8dp"
+            android:drawableTint="?attr/colorOnSurfaceVariant"
             android:gravity="center"
             android:text="@string/tab_timeline"
             android:textSize="15sp" />
